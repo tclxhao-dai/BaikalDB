@@ -132,4 +132,5 @@ enum OpType {
     OP_MODIFY_PARTITION                     = 193;
     OP_UPDATE_CHARSET                       = 194;
     OP_MODIFY_USER                          = 195; //改user
+    OP_MODIFY_LEARNER_RESOURCE_TAG          = 300;
 };
