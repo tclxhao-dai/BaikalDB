@@ -99,6 +99,8 @@ const std::string SQL_HADNLE_CONVERT_PARTITION          = "convert_partition";
 const std::string SQL_HANDLE_OFFLINE_BINLOG             = "offline_binlog";
 // handle link_external_sst dbName tableName partitionName
 const std::string SQL_HADNLE_LINK_EXTERNAL_SST          = "link_external_sst";
+// handle table_learner_resource_tag tableName tag1,tag2...
+const std::string SQL_HANDLE_TABLE_LEARNER_RESOURCE_TAG = "table_learner_resource_tag";
 
 namespace baikaldb {
 typedef std::shared_ptr<NetworkSocket> SmartSocket;
@@ -192,6 +194,8 @@ private:
     bool _handle_link_external_sst(const SmartSocket& client, const std::vector<std::string>& split_vec);
 
     bool _send_store_raft_control_request(const SmartSocket& client, pb::RaftControlRequest& req, pb::RegionInfo& info);
+    // sql: handle table_learner_resource_tag tableName tag1,tag2...
+    bool _handle_table_learner_resource_tag(const SmartSocket& client, const std::vector<std::string>& split_vec);
     bool _make_response_packet(const SmartSocket& client, const std::string& response);
     void _make_handle_region_result_rows(const pb::MetaManagerRequest& request, 
         const pb::MetaManagerResponse& response, 

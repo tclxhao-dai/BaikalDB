@@ -2015,6 +2015,25 @@ void TableManager::update_resource_tag(const pb::MetaManagerRequest& request,
     DB_NOTICE("update table internal success, request:%s", request.ShortDebugString().c_str());
 }
 
+void TableManager::update_learner_resource_tag(const pb::MetaManagerRequest& request,
+                                       const int64_t apply_index,
+                                       braft::Closure* done) {
+    DB_NOTICE("update table internal success, request:%s", request.ShortDebugString().c_str());
+    update_table_internal(request, apply_index, done, 
+        [](const pb::MetaManagerRequest& request, pb::SchemaInfo& mem_schema_pb, braft::Closure* done) {
+            mem_schema_pb.set_version(mem_schema_pb.version() + 1);
+            mem_schema_pb.clear_learner_resource_tags();
+            for (auto& resource_tag : request.table_info().learner_resource_tags()) {
+                if (!ClusterManager::get_instance()->check_resource_tag_exist(resource_tag)) {
+                    DB_WARNING("check resource_tag exist fail, request:%s", request.ShortDebugString().c_str());
+                    IF_DONE_SET_RESPONSE(done, pb::INPUT_PARAM_ERROR, "resource_tag not exist");
+                    return ;
+                }
+                mem_schema_pb.add_learner_resource_tags(resource_tag);
+            }
+        });
+}
+
 void TableManager::update_dists(const pb::MetaManagerRequest& request,
                                 const int64_t apply_index, 
                                 braft::Closure* done) {

@@ -208,8 +208,8 @@ bind(
 
 git_repository(
     name = "com_github_brpc_braft",
-    remote = "https://github.com/baidu/braft.git",
-    tag = "v1.1.2",
+    remote = "https://github.com/cyz-2023/braft.git",
+    tag = "v1.1.2.1",
 )
 
 bind(
