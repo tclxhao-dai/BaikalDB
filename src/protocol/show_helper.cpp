@@ -1766,7 +1766,7 @@ bool ShowHelper::_show_table_status(const SmartSocket& client, const std::vector
             // Make rows.
             std::vector<std::string> row;
             row.emplace_back(tables[cnt]);
-            row.emplace_back("Innodb");
+            row.emplace_back("InnoDB");
             row.emplace_back("1");
             row.emplace_back("Compact");
             row.emplace_back("1");
@@ -1828,7 +1828,7 @@ bool ShowHelper::_show_table_status(const SmartSocket& client, const std::vector
             // Make rows.
             std::vector<std::string> row;
             row.emplace_back(table_info.table_name());
-            row.emplace_back("Innodb");
+            row.emplace_back("InnoDB");
             row.emplace_back(std::to_string(table_info.version()));
             row.emplace_back("Compact");
             row.emplace_back(std::to_string(table_info.row_count()));
