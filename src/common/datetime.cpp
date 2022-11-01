@@ -18,6 +18,7 @@
 #include "expr_value.h"
 
 namespace baikaldb {
+DEFINE_bool(dateformat_compatible, true, "dateformat compatible flag");
 std::string timestamp_to_str(time_t timestamp, bool is_utc) {
     // 内部存储采用了uint32，因此小于0的都不合法
     if (timestamp <= 0) {
@@ -575,7 +576,12 @@ size_t date_format_internal(char* s, size_t maxsize, const char* format, const s
                 f += std::to_string(hour12);
                 break;
             case 'M':
-                f += "%B";
+                if (FLAGS_dateformat_compatible) {
+                    //DB_WARNING("date_format has M,[%s]", format);
+                    f += "%M";
+                } else {
+                    f += "%B";
+                }
                 break;
             case 'p':
                 if (tp->tm_hour % 24 >= 12){
