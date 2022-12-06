@@ -131,4 +131,5 @@ enum OpType {
     OP_SWAP_TABLE                           = 192; //原子交换两个表名
     OP_MODIFY_PARTITION                     = 193;
     OP_UPDATE_CHARSET                       = 194;
+    OP_MODIFY_USER                          = 195; //改user
 };

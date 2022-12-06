@@ -22,6 +22,7 @@ message NameSpaceInfo {
     optional int64 replica_num             = 10;
     optional int64 region_split_lines      = 11; //region分裂行数阈值
     repeated ReplicaDist dists             = 12;
+    optional bool  if_exist                = 13;
 };
 
 message DataBaseInfo {
@@ -294,6 +295,7 @@ message PrivilegeDatabase {
     optional int64 database_id = 2;
     optional RW database_rw    = 3;
     optional bool force        = 4;
+    optional uint32 acl         = 5; //权限控制列表,bitmap
 };
 
 message PrivilegeTable {
@@ -303,6 +305,7 @@ message PrivilegeTable {
     optional int64 table_id    = 4;
     optional RW table_rw       = 5;
     optional bool force        = 6;
+    optional uint32 acl         = 7; //权限控制列表,bitmap
 };
 
 message UserPrivilege {
@@ -321,6 +324,8 @@ message UserPrivilege {
     optional bool ddl_permission                  = 13; // ddl权限，空则认为没有权限，默认无权限
     optional int64 txn_lock_timeout               = 14; // 事务等锁超时时间，对优先级低的账号减少锁占用时间
     optional bool use_read_index                  = 15; // 读是否走folloewr read use read idx
+    optional uint32 acl                           = 16; //权限控制列表,bitmap
+    optional bool  if_exist                       = 17;
 };
 
 //集群信息
