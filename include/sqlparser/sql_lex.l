@@ -204,6 +204,7 @@ LONG { return LONG; }
 VARCHAR { return VARCHAR; }
 VARBINARY { return VARBINARY; }
 _BINARY { return _BINARY; }
+_UTF8MB4 { return _UTF8MB4; }
 VIRTUAL { return VIRTUAL; }
 WHEN { return WHEN; }
 WHERE { return WHERE; }
