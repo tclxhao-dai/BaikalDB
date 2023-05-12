@@ -1461,6 +1461,7 @@ int Transaction::get_update_primary_columns(
                 DB_WARNING("decode value tuple_id: %d failed: %d", tuple_id, field_id);
                 return -1;
             }
+            read_disk_size += value.size();
         } else if (res.IsNotFound()) {
             if (val != nullptr) {
                 const FieldDescriptor* field = val->get_field_by_tag(field_id);
