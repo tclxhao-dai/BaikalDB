@@ -2952,7 +2952,7 @@ int SchemaFactory::fill_default_value(SmartRecord record, FieldInfo& field) {
     }
     ExprValue default_value = field.default_expr_value;
     if (field.default_value == "(current_timestamp())") {
-        default_value = ExprValue::Now();
+        default_value = ExprValue::Now(0);
         default_value.cast_to(field.type);
     }
     // mysql非strict mode，不填not null字段会补充空串/0等

@@ -67,6 +67,7 @@ struct QueryStat {
     int64_t     num_affected_rows = 0;
     int64_t     num_returned_rows = 0;
     int64_t     num_scan_rows     = 0;
+    int64_t     read_disk_size = 0;
     int64_t     num_filter_rows   = 0;
     int64_t     txn_alive_time    = 0;
     uint64_t    log_id = 0;
@@ -113,6 +114,7 @@ struct QueryStat {
         num_affected_rows   = 0;
         num_returned_rows   = 0;
         num_scan_rows       = 0;
+        read_disk_size      = 0;
         num_filter_rows     = 0;
         log_id              = butil::fast_rand();
         old_txn_id          = 0;

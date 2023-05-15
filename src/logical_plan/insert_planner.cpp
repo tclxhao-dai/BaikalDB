@@ -180,7 +180,7 @@ int InsertPlanner::parse_kv_list() {
                 node->set_num_children(0);
                 node->set_node_type(pb::STRING_LITERAL);
                 node->set_col_type(pb::STRING);
-                node->mutable_derive_node()->set_string_val(ExprValue::Now().get_string());
+                node->mutable_derive_node()->set_string_val(ExprValue::Now(0).get_string());
             }
         }
         _update_values.emplace_back(value_expr);
@@ -195,7 +195,7 @@ int InsertPlanner::parse_kv_list() {
             node->set_num_children(0);
             node->set_node_type(pb::STRING_LITERAL);
             node->set_col_type(pb::STRING);
-            node->mutable_derive_node()->set_string_val(ExprValue::Now().get_string());
+            node->mutable_derive_node()->set_string_val(ExprValue::Now(0).get_string());
             auto slot = get_scan_ref_slot(tbl_ptr->name, field.table_id, field.id, field.type);
             _update_slots.emplace_back(slot);
             _update_values.emplace_back(value_expr);
