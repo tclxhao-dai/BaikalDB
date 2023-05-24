@@ -175,6 +175,9 @@ void DatabaseManager::modify_database(const pb::MetaManagerRequest& request, bra
     if (database_info.dists_size() > 0) {
         tmp_database_info.mutable_dists()->Swap(const_cast<pb::DataBaseInfo&>(database_info).mutable_dists());
     }
+    if (database_info.has_main_logical_room() > 0) {
+        tmp_database_info.set_main_logical_room(database_info.main_logical_room());
+    }
     std::string database_value;
     if (!tmp_database_info.SerializeToString(&database_value)) {
         DB_WARNING("request serializeToArray fail, request:%s",request.ShortDebugString().c_str());

@@ -141,6 +141,9 @@ void NamespaceManager::modify_namespace(const pb::MetaManagerRequest& request, b
     if (namespace_info.dists_size() > 0) {
         tmp_info.mutable_dists()->Swap(const_cast<pb::NameSpaceInfo&>(namespace_info).mutable_dists());
     }
+    if (namespace_info.has_main_logical_room()) {
+        tmp_info.set_main_logical_room(namespace_info.main_logical_room());
+    }
     tmp_info.set_version(tmp_info.version() + 1);
 
     //持久化新的namespace信息
