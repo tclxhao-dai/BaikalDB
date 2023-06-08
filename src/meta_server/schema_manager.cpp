@@ -856,15 +856,6 @@ int SchemaManager::pre_process_for_split_region(const pb::MetaManagerRequest* re
                             "table id not exist", request->op_type(), log_id);
         return -1;
     }
-    if (ptr_region->peers_size() < 2) {
-        ERROR_SET_RESPONSE_WARN(response, pb::INPUT_PARAM_ERROR,
-                                "region not stable, cannot split",
-                                request->op_type(),
-                                log_id);
-        DB_WARNING("region cannot split, region not stable, request: %s, region_id: %ld",
-                   request->ShortDebugString().c_str(), region_id);
-        return -1;
-    }
     int64_t table_id = 0;
     if (request->region_split().has_table_id()) {
         table_id = request->region_split().table_id();
@@ -915,6 +906,18 @@ int SchemaManager::pre_process_for_split_region(const pb::MetaManagerRequest* re
     if (instance_num > 3) {
         instance_num = 3;
     }
+
+    if (ptr_region->peers_size() < 2 && instance_num > 1) {
+        ERROR_SET_RESPONSE_WARN(response, pb::INPUT_PARAM_ERROR,
+                                "region not stable, cannot split",
+                                request->op_type(),
+                                log_id);
+        DB_WARNING("region cannot split, region not stable, request: %s, region_id: %ld",
+                   request->ShortDebugString().c_str(), region_id);
+        return -1;
+    }
+
+
     // 副本分布 {resource_tag:logical_room:physical_room} : replica_count
     std::unordered_map<std::string, int64_t> replica_dists_map;
     ret = TableManager::get_instance()->get_replica_dist_idcs(table_id, replica_dists_map);
