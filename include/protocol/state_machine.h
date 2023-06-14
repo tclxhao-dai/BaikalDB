@@ -26,6 +26,7 @@
 #include "binlog_context.h"
 #include "handle_helper.h"
 #include "show_helper.h"
+#include "lru_cache.h"
 
 namespace baikaldb {
 
@@ -84,9 +85,7 @@ enum QUERY_TYPE {
 
 class StateMachine {
 public:
-    ~StateMachine() {
-    }
-
+    ~StateMachine() {}
     static StateMachine* get_instance() {
         static StateMachine smachine;
         return &smachine;
@@ -104,6 +103,7 @@ private:
                     exec_sql_error("exec_sql_error"),
                     exec_sql_error_second("exec_sql_error_second", &exec_sql_error){
         _wrapper = MysqlWrapper::get_instance();
+        _query_cache.init(100);
     }
 
     StateMachine& operator=(const StateMachine& other);
@@ -136,6 +136,8 @@ private:
     int _reset_network_socket_client_resource(SmartSocket client);
     void _print_query_time(SmartSocket client);
 
+    bool _handle_client_query_with_cache(SmartSocket client);
+
     bvar::LatencyRecorder dml_time_cost;
     bvar::LatencyRecorder select_time_cost;
     bvar::LatencyRecorder txn_alive_time_cost;
@@ -148,6 +150,31 @@ private:
     std::mutex          _mutex;
 
     MysqlWrapper*   _wrapper = nullptr;
+    // query cache
+    struct QueryBuffer {
+        QueryBuffer() {
+            buf_time = 0; // 空buffer，时间为0，相当于一定会过期
+        }
+        bool is_expired(int64_t expired_time_us) {
+            return buf_time + expired_time_us < butil::gettimeofday_us();
+        }
+        void set_buffer(const DataBuffer* buffer) {
+            SmartBuffer tmp_buf(new DataBuffer());
+            tmp_buf->byte_array_append_len(buffer->_data, buffer->_size);
+            buf.swap(tmp_buf);
+            buf_time = butil::gettimeofday_us();
+        }
+        void get_buffer(DataBuffer* buffer) {
+            buffer->byte_array_clear();
+            buffer->byte_array_append_len(buf->_data, buf->_size);
+        }
+        SmartBuffer buf;
+        int64_t buf_time;
+        BthreadCond cond;
+    };
+    typedef std::shared_ptr<QueryBuffer> SmartQueryBuffer;
+    Cache<std::string, SmartQueryBuffer> _query_cache;
+    std::mutex _cache_mutex;
 
 public:
     bvar::Adder<BvarMap> sql_agg_cost;
