@@ -760,27 +760,6 @@ bool ShowHelper::_show_create_table(const SmartSocket& client, const std::vector
         //client->state = STATE_ERROR;
         return false;
     }
-    static std::map<pb::PrimitiveType, std::string> type_map = {
-            {pb::BOOL, "boolean"},
-            {pb::INT8, "tinyint(4)"},
-            {pb::UINT8, "tinyint(4) unsigned"},
-            {pb::INT16, "smallint(6)"},
-            {pb::UINT16, "smallint(6) unsigned"},
-            {pb::INT32, "int(10)"},
-            {pb::UINT32, "int(10) unsigned"},
-            {pb::INT64, "bigint(20)"},
-            {pb::UINT64, "bigint(20) unsigned"},
-            {pb::FLOAT, "float"},
-            {pb::DOUBLE, "double"},
-            {pb::STRING, "varchar(1024)"},
-            {pb::DATETIME, "DATETIME"},
-            {pb::TIME, "TIME"},
-            {pb::TIMESTAMP, "TIMESTAMP"},
-            {pb::DATE, "DATE"},
-            {pb::HLL, "HLL"},
-            {pb::BITMAP, "BITMAP"},
-            {pb::TDIGEST, "TDIGEST"},
-    };
     static std::map<pb::IndexType, std::string> index_map = {
             {pb::I_PRIMARY, "PRIMARY KEY"},
             {pb::I_UNIQ, "UNIQUE KEY"},
@@ -853,7 +832,7 @@ bool ShowHelper::_show_create_table(const SmartSocket& client, const std::vector
             continue;
         }
         oss << "  " << "`" << field.short_name << "` ";
-        oss << type_map[field.type] << " ";
+        oss << to_mysql_type_full_string(field.type) << " ";
         oss << (field.can_null ? "NULL " : "NOT NULL ");
         if (!field.default_expr_value.is_null()) {
             oss << "DEFAULT ";
@@ -1549,7 +1528,7 @@ bool ShowHelper::_show_full_columns(const SmartSocket& client, const std::vector
             }
         }
         row.emplace_back(split_vec[split_vec.size() - 1]);
-        row.emplace_back(PrimitiveType_Name(field.type));
+        row.emplace_back(to_mysql_type_full_string(field.type));
         row.emplace_back("NULL");
         row.emplace_back(field.can_null ? "YES" : "NO");
         if (field_index.count(field.id) == 0) {
@@ -1561,7 +1540,11 @@ bool ShowHelper::_show_full_columns(const SmartSocket& client, const std::vector
             }
             row.emplace_back(index);
         }
-        row.emplace_back(field.default_value);
+        if (field.default_value == "(current_timestamp())") {
+            row.emplace_back("CURRENT_TIMESTAMP");
+        } else {
+            row.emplace_back(field.default_value);
+        }
         if (info.auto_inc_field_id == field.id) {
             row.emplace_back("auto_increment");
         } else {
