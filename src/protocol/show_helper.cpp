@@ -706,6 +706,14 @@ bool ShowHelper::_show_create_table(const SmartSocket& client, const std::vector
         //client->state = STATE_ERROR;
         return false;
     }
+    bool compatible = false;
+    auto iter = client->session_vars.find("sql_mode");
+    if (iter != client->session_vars.end() && iter->second.node_type() == pb::STRING_LITERAL) {
+        if (iter->second.derive_node().string_val() == "compatible") {
+            compatible = true;
+        }
+    }
+
     static std::map<pb::IndexType, std::string> index_map = {
             {pb::I_PRIMARY, "PRIMARY KEY"},
             {pb::I_UNIQ, "UNIQUE KEY"},
@@ -810,109 +818,145 @@ bool ShowHelper::_show_create_table(const SmartSocket& client, const std::vector
             }
             continue;
         }
-        if (index_info.is_global) {
-            oss << " " << index_map[index_info.type] << " GLOBAL ";
-        } else if (index_info.type == pb::I_PRIMARY || index_info.type == pb::I_FULLTEXT) {
-            oss << " " << index_map[index_info.type] << " ";
-        } else {
-            oss << "  " << index_map[index_info.type] << " LOCAL ";
-        }
-        if (index_info.index_hint_status == pb::IHS_VIRTUAL) {
-            oss << "VIRTUAL ";
-        }
-        if (index_info.type != pb::I_PRIMARY) {
-            std::vector<std::string> split_vec;
-            boost::split(split_vec, index_info.name,
-                         boost::is_any_of("."), boost::token_compress_on);
-            oss << "`" << split_vec[split_vec.size() - 1] << "` ";
-        }
-        oss << "(";
-        uint32_t field_idx = 0;
-        for (auto& field : index_info.fields) {
-            std::vector<std::string> split_vec;
-            boost::split(split_vec, field.name,
-                         boost::is_any_of("."), boost::token_compress_on);
-            if (++field_idx < index_info.fields.size()) {
-                oss << "`" << split_vec[split_vec.size() - 1] << "`,";
+        if (!compatible) {
+            if (index_info.is_global) {
+                oss << " " << index_map[index_info.type] << " GLOBAL ";
+            } else if (index_info.type == pb::I_PRIMARY || index_info.type == pb::I_FULLTEXT) {
+                oss << " " << index_map[index_info.type] << " ";
             } else {
-                oss << "`" << split_vec[split_vec.size() - 1] << "`";
+                oss << "  " << index_map[index_info.type] << " LOCAL ";
             }
+            if (index_info.index_hint_status == pb::IHS_VIRTUAL) {
+                oss << "VIRTUAL ";
+            }
+            if (index_info.type != pb::I_PRIMARY) {
+                std::vector<std::string> split_vec;
+                boost::split(split_vec, index_info.name,
+                             boost::is_any_of("."), boost::token_compress_on);
+                oss << "`" << split_vec[split_vec.size() - 1] << "` ";
+            }
+            oss << "(";
+            uint32_t field_idx = 0;
+            for (auto& field : index_info.fields) {
+                std::vector<std::string> split_vec;
+                boost::split(split_vec, field.name,
+                             boost::is_any_of("."), boost::token_compress_on);
+                if (++field_idx < index_info.fields.size()) {
+                    oss << "`" << split_vec[split_vec.size() - 1] << "`,";
+                } else {
+                    oss << "`" << split_vec[split_vec.size() - 1] << "`";
+                }
+            }
+            oss << ") COMMENT '{\"index_state\":\"";
+            oss << pb::IndexState_Name(index_info.state) << "\", ";
+            if (index_info.type == pb::I_FULLTEXT) {
+                oss << "\"segment_type\":\"" << pb::SegmentType_Name(index_info.segment_type) << "\", ";
+                oss << "\"storage_type\":\"" << pb::StorageType_Name(index_info.storage_type) << "\", ";
+            }
+            oss << "\"hint_status\":\"" << pb::IndexHintStatus_Name(index_info.index_hint_status) << "\"}'";
+        } else {
+            if (index_info.index_hint_status == pb::IHS_VIRTUAL) {
+                continue;
+            }
+            oss << " " << index_map[index_info.type] << " ";
+            if (index_info.type != pb::I_PRIMARY) {
+                std::vector<std::string> split_vec;
+                boost::split(split_vec, index_info.name,
+                             boost::is_any_of("."), boost::token_compress_on);
+                oss << "`" << split_vec[split_vec.size() - 1] << "` ";
+            }
+            oss << "(";
+            uint32_t field_idx = 0;
+            for (auto& field : index_info.fields) {
+                std::vector<std::string> split_vec;
+                boost::split(split_vec, field.name,
+                             boost::is_any_of("."), boost::token_compress_on);
+                if (++field_idx < index_info.fields.size()) {
+                    oss << "`" << split_vec[split_vec.size() - 1] << "`,";
+                } else {
+                    oss << "`" << split_vec[split_vec.size() - 1] << "`";
+                }
+            }
+            oss << ")";
+
         }
-        oss << ") COMMENT '{\"index_state\":\"";
-        oss << pb::IndexState_Name(index_info.state) << "\", ";
-        if (index_info.type == pb::I_FULLTEXT) {
-            oss << "\"segment_type\":\"" << pb::SegmentType_Name(index_info.segment_type) << "\", ";
-            oss << "\"storage_type\":\"" << pb::StorageType_Name(index_info.storage_type) << "\", ";
-        }
-        oss << "\"hint_status\":\"" << pb::IndexHintStatus_Name(index_info.index_hint_status) << "\"}'";
         if (++index_idx < info.indices.size()) {
             oss << ",\n";
         } else {
             oss << "\n";
         }
     }
-    static std::map<pb::Engine, std::string> engine_map = {
-            {pb::ROCKSDB, "Rocksdb"},
-            {pb::REDIS, "Redis"},
-            {pb::ROCKSDB_CSTORE, "Rocksdb_cstore"},
-            {pb::BINLOG, "Binlog"},
-            {pb::INFORMATION_SCHEMA, "MEMORY"}
-    };
-    oss << ") ENGINE=" << engine_map[info.engine];
-    oss << " DEFAULT CHARSET=" << charset_map[info.charset];
-    oss <<" AVG_ROW_LENGTH=" << info.byte_size_per_record;
-    oss << " COMMENT='{\"resource_tag\":\"" << info.resource_tag << "\"";
-    if (!info.comment.empty()) {
-        oss << ", \"comment\":\"" << info.comment << "\"";
-    }
-    oss << ", \"replica_num\":" << info.replica_num;
-    oss << ", \"region_split_lines\":" << info.region_split_lines;
-    if (info.ttl_info.ttl_duration_s > 0) {
-        oss << ", \"ttl_duration\":" << info.ttl_info.ttl_duration_s;
-    }
-    if (info.learner_resource_tags.size() > 0) {
-        oss << ", \"learner_resource_tag\": [";
-        for (size_t i = 0; i < info.learner_resource_tags.size(); i++) {
-            oss << "\"" << info.learner_resource_tags[i] << "\"";
-            if (i != info.learner_resource_tags.size() - 1) {
-                oss << ",";
-            }
-        }
-        oss << "]";
-    }
-    if (info.dists.size() > 0) {
-        oss << ", \"dists\": [";
-        for (size_t i = 0; i < info.dists.size(); ++i) {
-            oss << " { ";
-            if (!info.dists[i].resource_tag.empty()) {
-                oss << "\"resource_tag\":\"" << info.dists[i].resource_tag << "\",";
-            }
-            if (!info.dists[i].logical_room.empty()) {
-                oss << "\"logical_room\":\"" << info.dists[i].logical_room << "\", ";
-            }
-            if (!info.dists[i].physical_room.empty()) {
-                oss << "\"physical_room\":\"" << info.dists[i].physical_room << "\", ";
-            }
-            oss << "\"count\":" << info.dists[i].count << "}";
-            if (i != info.dists.size() -1) {
-                oss << ",";
-            }
-        }
-        oss << "]";
-    }
-    if (!info.main_logical_room.empty()) {
-        oss << ", \"main_logical_room\": \"" << info.main_logical_room << "\"";
-    }
 
-    if (info.region_num > 0) {
-        oss << ", \"region_num\":" << info.region_num;
-    }
-    oss << ", \"namespace\":\"" << info.namespace_ << "\"}'";
-    if (info.partition_num > 1) {
-        if (info.partition_ptr != nullptr) {
-            oss << info.partition_ptr->to_str();
-        } else {
-            DB_WARNING_CLIENT(client, "partition info is null");
+    if (!compatible) {
+        static std::map<pb::Engine, std::string> engine_map = {
+                {pb::ROCKSDB, "Rocksdb"},
+                {pb::REDIS, "Redis"},
+                {pb::ROCKSDB_CSTORE, "Rocksdb_cstore"},
+                {pb::BINLOG, "Binlog"},
+                {pb::INFORMATION_SCHEMA, "MEMORY"}
+        };
+        oss << ") ENGINE=" << engine_map[info.engine];
+        oss << " DEFAULT CHARSET=" << charset_map[info.charset];
+        oss <<" AVG_ROW_LENGTH=" << info.byte_size_per_record;
+        oss << " COMMENT='{\"resource_tag\":\"" << info.resource_tag << "\"";
+        if (!info.comment.empty()) {
+            oss << ", \"comment\":\"" << info.comment << "\"";
+        }
+        oss << ", \"replica_num\":" << info.replica_num;
+        oss << ", \"region_split_lines\":" << info.region_split_lines;
+        if (info.ttl_info.ttl_duration_s > 0) {
+            oss << ", \"ttl_duration\":" << info.ttl_info.ttl_duration_s;
+        }
+        if (info.learner_resource_tags.size() > 0) {
+            oss << ", \"learner_resource_tag\": [";
+            for (size_t i = 0; i < info.learner_resource_tags.size(); i++) {
+                oss << "\"" << info.learner_resource_tags[i] << "\"";
+                if (i != info.learner_resource_tags.size() - 1) {
+                    oss << ",";
+                }
+            }
+            oss << "]";
+        }
+        if (info.dists.size() > 0) {
+            oss << ", \"dists\": [";
+            for (size_t i = 0; i < info.dists.size(); ++i) {
+                oss << " { ";
+                if (!info.dists[i].resource_tag.empty()) {
+                    oss << "\"resource_tag\":\"" << info.dists[i].resource_tag << "\",";
+                }
+                if (!info.dists[i].logical_room.empty()) {
+                    oss << "\"logical_room\":\"" << info.dists[i].logical_room << "\", ";
+                }
+                if (!info.dists[i].physical_room.empty()) {
+                    oss << "\"physical_room\":\"" << info.dists[i].physical_room << "\", ";
+                }
+                oss << "\"count\":" << info.dists[i].count << "}";
+                if (i != info.dists.size() -1) {
+                    oss << ",";
+                }
+            }
+            oss << "]";
+        }
+        if (!info.main_logical_room.empty()) {
+            oss << ", \"main_logical_room\": \"" << info.main_logical_room << "\"";
+        }
+
+        if (info.region_num > 0) {
+            oss << ", \"region_num\":" << info.region_num;
+        }
+        oss << ", \"namespace\":\"" << info.namespace_ << "\"}'";
+        if (info.partition_num > 1) {
+            if (info.partition_ptr != nullptr) {
+                oss << info.partition_ptr->to_str();
+            } else {
+                DB_WARNING_CLIENT(client, "partition info is null");
+            }
+        }
+    } else {
+        oss << ") ENGINE=" << "InnoDB";
+        oss << " DEFAULT CHARSET=" << charset_map[info.charset];
+        if (!info.comment.empty()) {
+            oss << "COMMENT='" << info.comment << "'";
         }
     }
     row.emplace_back(oss.str());
