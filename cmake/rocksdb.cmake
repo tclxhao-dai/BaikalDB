@@ -17,9 +17,9 @@ INCLUDE(ExternalProject)
 SET(ROCKSDB_SOURCES_DIR ${THIRD_PARTY_PATH}/rocksdb)
 SET(ROCKSDB_INSTALL_DIR ${THIRD_PARTY_PATH}/install/rocksdb)
 SET(ROCKSDB_INCLUDE_DIR "${ROCKSDB_INSTALL_DIR}/include" CACHE PATH "rocksdb include directory." FORCE)
-SET(ROCKSDB_LIBRARIES "${ROCKSDB_INSTALL_DIR}/lib/librocksdb.a" CACHE FILEPATH "rocksdb library." FORCE)
+SET(ROCKSDB_LIBRARIES "${ROCKSDB_INSTALL_DIR}/lib64/librocksdb.a" CACHE FILEPATH "rocksdb library." FORCE)
 
-set(prefix_path "${THIRD_PARTY_PATH}/install/snappy|${THIRD_PARTY_PATH}/install/zlib|${THIRD_PARTY_PATH}/install/gflags")
+set(prefix_path "${THIRD_PARTY_PATH}/install/snappy|${THIRD_PARTY_PATH}/install/lz4|${THIRD_PARTY_PATH}/install/zstd|${THIRD_PARTY_PATH}/install/zlib|${THIRD_PARTY_PATH}/install/gflags")
 
 #FILE(WRITE ${ROCKSDB_SOURCES_DIR}/src/build.sh
 #        "PORTABLE=1 make -j${NUM_OF_PROCESSOR} static_lib"
@@ -28,9 +28,9 @@ set(prefix_path "${THIRD_PARTY_PATH}/install/snappy|${THIRD_PARTY_PATH}/install/
 ExternalProject_Add(
         extern_rocksdb
         ${EXTERNAL_PROJECT_LOG_ARGS}
-        DEPENDS gflags zlib snappy
+        DEPENDS gflags zlib snappy zstd lz4
         PREFIX ${ROCKSDB_SOURCES_DIR}
-        URL "https://github.com/facebook/rocksdb/archive/v6.29.3.tar.gz"
+        URL "https://github.com/facebook/rocksdb/archive/v6.26.0.tar.gz"
         UPDATE_COMMAND ""
 #        CONFIGURE_COMMAND ""
 #        BUILD_IN_SOURCE 1
@@ -50,6 +50,8 @@ ExternalProject_Add(
         -DCMAKE_PREFIX_PATH=${prefix_path}
         -DPORTABLE=ON
         -DWITH_SNAPPY=ON
+        -DWITH_ZSTD=ON
+        -DWITH_LZ4=ON
         -DWITH_RUNTIME_DEBUG=ON
         -DROCKSDB_BUILD_SHARED=OFF
         -DWITH_BENCHMARK_TOOLS=OFF
@@ -63,7 +65,7 @@ ExternalProject_Add(
         -DCMAKE_BUILD_TYPE:STRING=${THIRD_PARTY_BUILD_TYPE}
 )
 
-ADD_DEPENDENCIES(extern_rocksdb zlib snappy gflags)
+ADD_DEPENDENCIES(extern_rocksdb zlib snappy zstd lz4 gflags)
 ADD_LIBRARY(rocksdb STATIC IMPORTED GLOBAL)
 SET_PROPERTY(TARGET rocksdb PROPERTY IMPORTED_LOCATION ${ROCKSDB_LIBRARIES})
 ADD_DEPENDENCIES(rocksdb extern_rocksdb)

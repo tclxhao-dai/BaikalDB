@@ -167,6 +167,30 @@ else ()
     include(snappy)
 endif ()
 
+#zstd
+if (WITH_SYSTEM_LIBS)
+    find_path(ZSTD_INCLUDE_DIR NAMES zstd.h)
+    find_library(ZSTD_LIBRARIES names zstd)
+    if ((NOT ZSTD_INCLUDE_DIR) OR (NOT ZSTD_LIBRARIES))
+        message(FATAL_ERROR "Fail to find zstd")
+    endif ()
+    ADD_LIBRARY(zstd SHARED IMPORTED GLOBAL)
+else ()
+    include(zstd)
+endif ()
+
+#lz4
+if (WITH_SYSTEM_LIBS)
+    find_path(LZ4_INCLUDE_DIR NAMES lz4.h)
+    find_library(LZ4_LIBRARIES names lz4)
+    if ((NOT LZ4_INCLUDE_DIR) OR (NOT LZ4_LIBRARIES))
+        message(FATAL_ERROR "Fail to find lz4")
+    endif ()
+    ADD_LIBRARY(lz4 SHARED IMPORTED GLOBAL)
+else ()
+    include(lz4)
+endif ()
+
 #re2
 if (WITH_SYSTEM_LIBS)
     find_path(RE2_INCLUDE_DIR NAMES re2/re2.h)
@@ -306,6 +330,8 @@ SET(DEP_INC
         ${GFLAGS_INCLUDE_DIR}
         ${GLOG_INCLUDE_DIR}
         ${SNAPPY_INCLUDE_DIR}
+        ${LZ4_INCLUDE_DIR}
+        ${ZSTD_INCLUDE_DIR}
         ${RE2_INCLUDE_DIR}
 
         ${ROCKSDB_INCLUDE_DIR}
@@ -336,8 +362,9 @@ SET(DEP_LIB
         ${GFLAGS_LIBRARIES}
         ${GLOG_LIBRARIES}
         ${SNAPPY_LIBRARIES}
+        ${ZSTD_LIBRARIES}
+        ${LZ4_LIBRARIES}
         ${RE2_LIBRARIES}
-
         ${ARROW_LIBRARIES}
         ${CROARING_LIBRARIES}
         ${Boost_LIBRARIES}
@@ -443,7 +470,7 @@ file(GLOB COMMON
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/output/bin)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/output/bin)
 
-set(COMMON_DEPS ssl crypto zlib boost rapidjson arrow croaring glog gflags protobuf re2 snappy rocksdb brpc braft)
+set(COMMON_DEPS ssl crypto zlib boost rapidjson arrow croaring glog gflags protobuf re2 snappy lz4 zstd rocksdb brpc braft)
 if (WITH_GPERF)
     set(COMMON_DEPS ${COMMON_DEPS} gperf)
 endif ()
@@ -452,6 +479,7 @@ add_library(common STATIC ${COMMON} $<TARGET_OBJECTS:PROTO_OBJS>)
 add_dependencies(common ${COMMON_DEPS})
 target_include_directories(common PUBLIC ${COMMON_INC})
 
+set(CMAKE_VERBOSE_MAKEFILEON ON)
 # baikalMeta
 file(GLOB META_SERVER src/meta_server/*.cpp)
 set(BAIKALMETA_INC ${COMMON_INC} include/meta_server)
