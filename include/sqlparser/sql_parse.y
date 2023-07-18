@@ -429,8 +429,6 @@ extern int sql_error(YYLTYPE* yylloc, yyscan_t yyscanner, SqlParser* parser, con
     BITMAP
     TDIGEST
     LEARNER
-    QUOTA
-    RESOURCE_TAG
 
     /* The following tokens belong to builtin functions. */
     ADDDATE
@@ -5423,18 +5421,16 @@ NSName:
     ;
 
 NamespaceOption:
-    QUOTA EqOpt INTEGER_LIT
+    AllIdent EqOpt Expr
     {
         NamespaceOption* option = new_node(NamespaceOption);
-        option->type = NAMESPACE_OPT_QUOTA;
-        option->uint_value = ((LiteralExpr*)$3)->_u.int64_val;
-        $$ = option;
-    }
-    | RESOURCE_TAG EqOpt STRING_LIT
-    {
-        NamespaceOption* option = new_node(NamespaceOption);
-        option->type = NAMESPACE_OPT_RESOURCE_TAG;
-        option->str_value = ((LiteralExpr*)$3)->_u.str_val;
+        if ($1.to_lower() == "quota") {
+            option->type = NAMESPACE_OPT_QUOTA;
+            option->uint_value = ((LiteralExpr*)$3)->_u.int64_val;
+        } else if ($1.to_lower() == "resource_tag") {
+            option->type = NAMESPACE_OPT_RESOURCE_TAG;
+            option->str_value = ((LiteralExpr*)$3)->_u.str_val;
+        }
         $$ = option;
     }
     ;
