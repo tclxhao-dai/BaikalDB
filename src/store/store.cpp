@@ -85,6 +85,8 @@ DEFINE_int64(check_peer_delay_min, 1, "check peer delay min");
 DECLARE_bool(store_rocks_hang_check);
 DECLARE_int32(store_rocks_hang_check_timeout_s);
 DECLARE_int32(store_rocks_hang_cnt_limit);
+DECLARE_string(meta_server_bns);
+DECLARE_bool(auto_update_meta_list);
 
 BRPC_VALIDATE_GFLAG(rocksdb_perf_level, brpc::NonNegativeInteger);
 
@@ -998,6 +1000,30 @@ void Store::send_heart_beat() {
     _last_heart_time.reset();
     heart_beat_count << -1;
     DB_WARNING("heart beat");
+    if (FLAGS_auto_update_meta_list) {
+        update_meta_list();
+    }
+}
+
+void Store::update_meta_list() {
+    pb::RaftControlRequest req;
+    req.set_op_type(pb::GetPeerList);
+    pb::RaftControlResponse res;
+    if (_meta_server_interact.send_request("raft_control", req, res) == 0) {
+        std::string meta_list = "";
+        for (auto i = 0; i < res.peers_size(); i ++) {
+            if (i != 0) {
+                meta_list += ",";
+            }
+            meta_list += res.peers(i);
+        }
+        if (meta_list != "" && meta_list != FLAGS_meta_server_bns) {
+            DB_WARNING("meta list %s change to:%s", FLAGS_meta_server_bns.c_str(), meta_list.c_str());
+            if ( _meta_server_interact.reset_bns_channel(meta_list) == 0) {
+                FLAGS_meta_server_bns = meta_list;
+            }
+        }
+    }
 }
 
 void Store::reverse_merge_thread() {
