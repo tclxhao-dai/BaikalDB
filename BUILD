@@ -60,6 +60,7 @@ COPTS  = [
     "-Wno-parentheses",
     "-Wno-deprecated-declarations",
     "-DBAIKAL_TCMALLOC",
+    "-DBRPC_ENABLE_CPU_PROFILER",
     "-UNDEBUG",
 ]
 
@@ -574,10 +575,6 @@ cc_binary(
         "include/engine",
         "include/common",
     ],
-    copts = [
-        "-DBAIDU_RPC_ENABLE_CPU_PROFILER",
-        "-DBAIDU_RPC_ENABLE_HEAP_PROFILER",
-    ],
     deps = [
         ":meta_server",
         ":cc_baikaldb_internal_proto",
@@ -596,10 +593,6 @@ cc_binary(
     srcs = ["src/store/main.cpp"],
     includes = [
         "include/store",
-    ],
-    copts = [
-        "-DBAIDU_RPC_ENABLE_CPU_PROFILER",
-        "-DBAIDU_RPC_ENABLE_HEAP_PROFILER",
     ],
     deps = [
         ":store",
@@ -713,10 +706,7 @@ cc_library(
 cc_binary(
     name = "baikaldb",
     srcs = ["src/protocol/main.cpp"],
-    copts = COPTS + [
-        "-DBAIDU_RPC_ENABLE_CPU_PROFILER",
-        "-DBAIDU_RPC_ENABLE_HEAP_PROFILER",
-    ],
+    copts = COPTS,
     deps = [
         ":protocol2",
         ":common",
