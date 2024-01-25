@@ -224,8 +224,6 @@ extern int sql_error(YYLTYPE* yylloc, yyscan_t yyscanner, SqlParser* parser, con
     USAGE
     USE
     USING
-    UTC_DATE
-    UTC_TIME
     VALUES
     LONG
     VARCHAR
@@ -2153,6 +2151,36 @@ FunctionCallNonKeyword:
         fun->children.push_back($3, parser->arena);
         $$ = fun;         
     }
+    | MINUTE '(' Expr ')' {
+        FuncExpr* fun = new_node(FuncExpr);
+        fun->fn_name = $1;
+        fun->children.push_back($3, parser->arena);
+        $$ = fun;         
+    }
+    | SECOND '(' Expr ')' {
+        FuncExpr* fun = new_node(FuncExpr);
+        fun->fn_name = $1;
+        fun->children.push_back($3, parser->arena);
+        $$ = fun;         
+    }
+    | TIME '(' Expr ')' {
+        FuncExpr* fun = new_node(FuncExpr);
+        fun->fn_name = $1;
+        fun->children.push_back($3, parser->arena);
+        $$ = fun;         
+    }
+    | QUARTER '(' Expr ')' {
+        FuncExpr* fun = new_node(FuncExpr);
+        fun->fn_name = $1;
+        fun->children.push_back($3, parser->arena);
+        $$ = fun;         
+    }
+    | MICROSECOND '(' Expr ')' {
+        FuncExpr* fun = new_node(FuncExpr);
+        fun->fn_name = $1;
+        fun->children.push_back($3, parser->arena);
+        $$ = fun;         
+    }
     | SYSDATE '(' FuncDatetimePrecListOpt ')' {
         FuncExpr* fun = new_node(FuncExpr);
         fun->fn_name = $1;
@@ -2394,7 +2422,9 @@ FunctionCallNonKeyword:
         $$ = fun;
     }
     | TIMESTAMPADD '(' TimestampUnit ',' Expr ',' Expr ')' {
-        $$ = nullptr;
+        FuncExpr* fun = FuncExpr::new_ternary_op_node(FT_COMMON, $3, $5, $7, parser->arena);
+        fun->fn_name = $1;
+        $$ = fun;
     }
     | TIMESTAMPDIFF '(' TimestampUnit ',' Expr ',' Expr ')' {
         FuncExpr* fun = FuncExpr::new_ternary_op_node(FT_COMMON, $3, $5, $7, parser->arena);
