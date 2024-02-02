@@ -667,26 +667,27 @@ int DDLPlanner::parse_create_table(pb::SchemaInfo& table) {
                     rapidjson::ParseErrorCode code = root.GetParseError();
                     DB_WARNING("parse create table json comments error [code:%d][%s]", 
                         code, value);
-                    return -1;
+                    // return -1;
+                } else if (root.IsObject()){
+                    auto json_iter = root.FindMember("segment_type");
+                    if (json_iter != root.MemberEnd()) {
+                        std::string segment_type = json_iter->value.GetString();
+                        pb::SegmentType pb_segment_type = pb::S_DEFAULT;
+                        SegmentType_Parse(segment_type, &pb_segment_type);
+                        index->set_segment_type(pb_segment_type);
+                    }
+                    auto storage_type_iter = root.FindMember("storage_type");
+                    pb::StorageType pb_storage_type = pb::ST_ARROW;
+                    if (storage_type_iter != root.MemberEnd()) {
+                        std::string storage_type = storage_type_iter->value.GetString();
+                        StorageType_Parse(storage_type, &pb_storage_type);
+                    }
+                    if (!is_fulltext_type_constraint(pb_storage_type, has_arrow_fulltext, has_pb_fulltext)) {
+                        DB_WARNING("fulltext has two types : pb&arrow"); 
+                        return -1;
+                    }
+                    index->set_storage_type(pb_storage_type);
                 }
-                auto json_iter = root.FindMember("segment_type");
-                if (json_iter != root.MemberEnd()) {
-                    std::string segment_type = json_iter->value.GetString();
-                    pb::SegmentType pb_segment_type = pb::S_DEFAULT;
-                    SegmentType_Parse(segment_type, &pb_segment_type);
-                    index->set_segment_type(pb_segment_type);
-                }
-                auto storage_type_iter = root.FindMember("storage_type");
-                pb::StorageType pb_storage_type = pb::ST_ARROW;
-                if (storage_type_iter != root.MemberEnd()) {
-                    std::string storage_type = storage_type_iter->value.GetString();
-                    StorageType_Parse(storage_type, &pb_storage_type);
-                }
-                if (!is_fulltext_type_constraint(pb_storage_type, has_arrow_fulltext, has_pb_fulltext)) {
-                    DB_WARNING("fulltext has two types : pb&arrow"); 
-                    return -1;
-                }
-                index->set_storage_type(pb_storage_type);
             } catch (...) {
                 DB_WARNING("parse create table json comments error [%s]", value);
                 return -1;
@@ -1640,23 +1641,24 @@ int DDLPlanner::add_constraint_def(pb::SchemaInfo& table, parser::Constraint* co
                 rapidjson::ParseErrorCode code = root.GetParseError();
                 DB_WARNING("parse create table json comments error [code:%d][%s]", 
                     code, value);
-                return -1;
+                // return -1;
+            } else if (root.IsObject()){
+                auto json_iter = root.FindMember("segment_type");
+                if (json_iter != root.MemberEnd()) {
+                    std::string segment_type = json_iter->value.GetString();
+                    pb::SegmentType pb_segment_type = pb::S_DEFAULT;
+                    SegmentType_Parse(segment_type, &pb_segment_type);
+                    index->set_segment_type(pb_segment_type);
+                }
+                
+                auto storage_type_iter = root.FindMember("storage_type");
+                pb::StorageType pb_storage_type = pb::ST_ARROW;
+                if (storage_type_iter != root.MemberEnd()) {
+                    std::string storage_type = storage_type_iter->value.GetString();
+                    StorageType_Parse(storage_type, &pb_storage_type);
+                }
+                index->set_storage_type(pb_storage_type);
             }
-            auto json_iter = root.FindMember("segment_type");
-            if (json_iter != root.MemberEnd()) {
-                std::string segment_type = json_iter->value.GetString();
-                pb::SegmentType pb_segment_type = pb::S_DEFAULT;
-                SegmentType_Parse(segment_type, &pb_segment_type);
-                index->set_segment_type(pb_segment_type);
-            }
-            
-            auto storage_type_iter = root.FindMember("storage_type");
-            pb::StorageType pb_storage_type = pb::ST_ARROW;
-            if (storage_type_iter != root.MemberEnd()) {
-                std::string storage_type = storage_type_iter->value.GetString();
-                StorageType_Parse(storage_type, &pb_storage_type);
-            }
-            index->set_storage_type(pb_storage_type);
         } catch (...) {
             DB_WARNING("parse create table json comments error [%s]", value);
             return -1;
