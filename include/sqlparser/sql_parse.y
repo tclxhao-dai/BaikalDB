@@ -5181,6 +5181,14 @@ AlterSpec:
         spec->new_columns.push_back((ColumnDef*)$3, parser->arena);
         $$ = spec;
     }
+    | CHANGE ColumnKwdOpt AllIdent ColumnDef ColumnPosOpt
+    {
+        AlterTableSpec* spec = new_node(AlterTableSpec);
+        spec->spec_type = ALTER_SPEC_CHANGE_COLUMN;
+        spec->column_name = $3;
+        spec->new_columns.push_back((ColumnDef*)$4, parser->arena);
+        $$ = spec;
+    }
     ;
 
 // Prepare Statement
