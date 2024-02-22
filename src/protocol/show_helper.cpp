@@ -823,10 +823,11 @@ bool ShowHelper::_show_create_table(const SmartSocket& client, const std::vector
                 oss << "VIRTUAL ";
             }
             if (index_info.type != pb::I_PRIMARY) {
-                std::vector<std::string> split_vec;
-                boost::split(split_vec, index_info.name,
-                             boost::is_any_of("."), boost::token_compress_on);
-                oss << "`" << split_vec[split_vec.size() - 1] << "` ";
+                // std::vector<std::string> split_vec;
+                // boost::split(split_vec, index_info.name,
+                //              boost::is_any_of("."), boost::token_compress_on);
+                // oss << "`" << split_vec[split_vec.size() - 1] << "` ";
+                oss << "`" << index_info.short_name << "`";
             }
             oss << "(";
             uint32_t field_idx = 0;
