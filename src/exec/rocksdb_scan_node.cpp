@@ -164,7 +164,7 @@ int RocksdbScanNode::choose_index(RuntimeState* state) {
         }
         return 0;
     }
-    if (pos_index.ranges_size() == 0) {
+    if (pos_index.ranges_size() == 0 && pos_index.primary_keys_size() == 0) {
         return 0;
     }
     //DB_WARNING_STATE(state, "use_index: %ld table_id: %ld left:%d, right:%d", 
@@ -177,51 +177,66 @@ int RocksdbScanNode::choose_index(RuntimeState* state) {
     if (pos_index.ranges_size() > FLAGS_in_predicate_check_threshold) {
         check_memory = true;
     }
-    for (auto& range : pos_index.ranges()) {
-        if (range.has_left_key()) {
-            _use_encoded_key = true;
-            if (range.left_key() != range.right_key()) {
-                is_eq = false;
-            }
-            _scan_range_keys.add_key(range.left_key(), range.left_full(), range.right_key(), range.right_full());
+    bool is_primary_get = pos_index.primary_keys_size() > 0;
+    if (is_primary_get) {
+        if (pos_index.primary_keys_size() > FLAGS_in_predicate_check_threshold) {
+            check_memory = true;
+        }
+        _use_encoded_key = true;
+        for (auto& pk : pos_index.primary_keys()) {
+            _scan_range_keys.add_key(pk, true, "", true);
             if (check_memory) {
-                ranges_used_size += range.left_key().size() * 2;
-                ranges_used_size += range.right_key().size() * 2;
-                ranges_used_size += 100; // 估计值
-            }
-        } else {
-            SmartRecord left_record = _factory->new_record(_table_id);
-            SmartRecord right_record = _factory->new_record(_table_id);
-            left_record->decode(range.left_pb_record());
-            right_record->decode(range.right_pb_record());
-            if (range.left_pb_record() != range.right_pb_record()) {
-                is_eq = false;
-            }
-            _left_records.emplace_back(left_record);
-            _right_records.emplace_back(right_record);
-            if (check_memory) {
-                ranges_used_size += left_record->used_size();
-                ranges_used_size += right_record->used_size();
+                ranges_used_size += pk.size() * 2;
                 ranges_used_size += 100; // 估计值
             }
         }
-        int left_field_cnt = range.left_field_cnt();
-        int right_field_cnt = range.right_field_cnt();
-        bool left_open = range.left_open();
-        bool right_open = range.right_open();
-        like_prefix = range.like_prefix();
-        if (left_field_cnt != right_field_cnt) {
-            is_eq = false;
+    } else {
+        for (auto& range : pos_index.ranges()) {
+            if (range.has_left_key()) {
+                _use_encoded_key = true;
+                if (range.left_key() != range.right_key()) {
+                    is_eq = false;
+                }
+                _scan_range_keys.add_key(range.left_key(), range.left_full(), range.right_key(), range.right_full());
+                if (check_memory) {
+                    ranges_used_size += range.left_key().size() * 2;
+                    ranges_used_size += range.right_key().size() * 2;
+                    ranges_used_size += 100; // 估计值
+                }
+            } else {
+                SmartRecord left_record = _factory->new_record(_table_id);
+                SmartRecord right_record = _factory->new_record(_table_id);
+                left_record->decode(range.left_pb_record());
+                right_record->decode(range.right_pb_record());
+                if (range.left_pb_record() != range.right_pb_record()) {
+                    is_eq = false;
+                }
+                _left_records.emplace_back(left_record);
+                _right_records.emplace_back(right_record);
+                if (check_memory) {
+                    ranges_used_size += left_record->used_size();
+                    ranges_used_size += right_record->used_size();
+                    ranges_used_size += 100; // 估计值
+                }
+            }
+            int left_field_cnt = range.left_field_cnt();
+            int right_field_cnt = range.right_field_cnt();
+            bool left_open = range.left_open();
+            bool right_open = range.right_open();
+            like_prefix = range.like_prefix();
+            if (left_field_cnt != right_field_cnt) {
+                is_eq = false;
+            }
+            //DB_WARNING_STATE(state, "left_open:%d right_open:%d", left_open, right_open);
+            if (left_open || right_open) {
+                is_eq = false;
+            }
+            _left_field_cnts.emplace_back(left_field_cnt);
+            _right_field_cnts.emplace_back(right_field_cnt);
+            _left_opens.push_back(left_open);
+            _right_opens.push_back(right_open);
+            _like_prefixs.push_back(like_prefix);
         }
-        //DB_WARNING_STATE(state, "left_open:%d right_open:%d", left_open, right_open);
-        if (left_open || right_open) {
-            is_eq = false;
-        }
-        _left_field_cnts.emplace_back(left_field_cnt);
-        _right_field_cnts.emplace_back(right_field_cnt);
-        _left_opens.push_back(left_open);
-        _right_opens.push_back(right_open);
-        _like_prefixs.push_back(like_prefix);
     }
     if (pos_index.has_is_eq()) {
         is_eq = pos_index.is_eq();
@@ -230,7 +245,9 @@ int RocksdbScanNode::choose_index(RuntimeState* state) {
     if (check_memory && 0 != state->memory_limit_exceeded(std::numeric_limits<int>::max(), ranges_used_size)) {
         return -1;
     }
-    if (_index_info->type == pb::I_PRIMARY || _index_info->type == pb::I_UNIQ) {
+    if (is_primary_get) {
+        _use_get = true;
+    } else if (_index_info->type == pb::I_PRIMARY || _index_info->type == pb::I_UNIQ) {
         if (_left_field_cnts[_idx] == (int)_index_info->fields.size() && is_eq && !like_prefix) {
             //DB_WARNING_STATE(state, "index use get ,index:%ld", _index_info.id);
             _use_get = true;

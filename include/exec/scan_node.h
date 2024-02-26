@@ -343,10 +343,10 @@ public:
     }
 
     void set_index_useage_and_lock(bool use_global_backup) {
+        _current_index_mutex.lock();
         // 只有在存在global backup的时候才加锁
         for (auto& scan_index_info : _scan_indexs) {
             if (scan_index_info.use_for == ScanIndexInfo::U_GLOBAL_LEARNER) {
-                _current_index_mutex.lock();
                 _current_global_backup = use_global_backup;
                 break;
             }
@@ -354,12 +354,12 @@ public:
     }
 
     void current_index_unlock() {
-        for (auto& scan_index_info : _scan_indexs) {
-            if (scan_index_info.use_for == ScanIndexInfo::U_GLOBAL_LEARNER) {
-                _current_index_mutex.unlock();
-                break;
-            }
-        }
+        _current_index_mutex.unlock();
+        // for (auto& scan_index_info : _scan_indexs) {
+        //     if (scan_index_info.use_for == ScanIndexInfo::U_GLOBAL_LEARNER) {
+        //         break;
+        //     }
+        // }
     }
 
     bool current_use_global_backup() const {

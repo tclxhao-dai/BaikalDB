@@ -2310,6 +2310,46 @@ int SchemaFactory::check_region_ranges_consecutive(int64_t table_id) {
     return 0;
 }
 
+int SchemaFactory::get_region_by_primary_key(int64_t main_table_id,
+        IndexInfo& index,
+        MutTableKey &primary_key,
+        int partition_id,
+        pb::RegionInfo &region_info) {
+
+    DoubleBufferedTableRegionInfo::ScopedPtr table_region_mapping_ptr;
+    if (_table_region_mapping.Read(&table_region_mapping_ptr) != 0) {
+        DB_WARNING("DoubleBufferedTableRegion read scoped ptr error.");
+        return -1;
+    }
+
+    auto it = table_region_mapping_ptr->find(index.id);
+    if (it == table_region_mapping_ptr->end()) {
+        DB_WARNING("index id[%ld] not in table_region_mapping", index.id);
+        return -1;
+    }
+    auto frontground = it->second;
+    auto &key_region_mapping = frontground->key_region_mapping;
+    auto record_template = TableRecord::new_record(main_table_id);
+    auto key_region_iter = key_region_mapping.find(partition_id);
+    if (key_region_iter == key_region_mapping.end()) {
+        DB_WARNING("partition %ld schema not update.", partition_id);
+        return -1;
+    }
+    StrInt64Map &map = key_region_iter->second;
+    auto region_iter = map.upper_bound(primary_key.data());
+    if (region_iter != map.begin()) {
+        --region_iter;
+    }
+    int64_t region_id = region_iter->second;
+    frontground->get_region_info(region_id, region_info);
+    region_info.set_start_key(region_iter->first);
+    region_iter ++;
+    if (region_iter != map.end()) {
+        region_info.set_end_key(region_iter->first);
+    }
+    return 0;
+}
+
 int SchemaFactory::get_region_by_key(IndexInfo& index, 
         const pb::PossibleIndex* primary,
         std::map<int64_t, pb::RegionInfo>& region_infos,

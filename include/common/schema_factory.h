@@ -57,6 +57,7 @@ static const std::string TABLE_TAIL_SPLIT_NUM  = "tail_split_num";            //
 static const std::string TABLE_TAIL_SPLIT_STEP = "tail_split_step";           //尾分裂步长
 struct UserInfo;
 class TableRecord;
+class MutTableKey;
 typedef std::shared_ptr<TableRecord> SmartRecord;
 typedef std::map<std::string, int64_t> StrInt64Map;
 
@@ -826,6 +827,13 @@ public:
     int get_region_ids_by_key(IndexInfo& index,
                               const std::vector<SmartRecord>&  records,
                               std::vector<int64_t>& region_ids);
+
+    int get_region_by_primary_key(int64_t main_table_id,
+                          IndexInfo& index,
+                          MutTableKey &primary_key,
+                          int partition_id,
+                          pb::RegionInfo &region_info
+                          );
 
     bool exist_tableid(int64_t table_id);
     void get_all_table_by_db(const std::string& namespace_, const std::string& db_name, std::vector<SmartTable>& table_ptrs);
