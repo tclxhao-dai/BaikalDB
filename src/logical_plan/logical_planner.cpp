@@ -1796,6 +1796,7 @@ void LogicalPlanner::construct_literal_expr(const ExprValue& value, pb::ExprNode
     node->set_num_children(0);
     node->set_node_type(literal.node_type());
     node->set_col_type(literal.col_type());
+    node->mutable_derive_node()->set_value_len(value.value_len);
     switch (literal.node_type()) {
         case pb::INT_LITERAL:
             node->mutable_derive_node()->set_int_val(value.get_numberic<int64_t>());
@@ -2394,52 +2395,52 @@ ScanTupleInfo* LogicalPlanner::get_scan_tuple(const std::string& table_name, int
 }
 
 pb::SlotDescriptor& LogicalPlanner::get_scan_ref_slot(
-        const std::string& alias_name, int64_t table, 
-        int32_t field, pb::PrimitiveType type) {
-    ScanTupleInfo* tuple_info = get_scan_tuple(alias_name, table);
+        const std::string& alias_name, const FieldInfo& field) {
+    ScanTupleInfo* tuple_info = get_scan_tuple(alias_name, field.table_id);
     _ctx->current_tuple_ids.emplace(tuple_info->tuple_id);
     pb::SlotDescriptor *slot_desc = nullptr;
 
     auto& inner_map = tuple_info->field_slot_mapping;
-    auto inner_iter = inner_map.find(field);
+    auto inner_iter = inner_map.find(field.id);
     if (inner_iter != inner_map.end()) {
         slot_desc = &(inner_iter->second);
         slot_desc->set_ref_cnt(slot_desc->ref_cnt() + 1);
     } else {
-        slot_desc = &inner_map[field];
+        slot_desc = &inner_map[field.id];
         slot_desc->set_slot_id(tuple_info->slot_cnt++);
-        slot_desc->set_slot_type(type);
+        slot_desc->set_slot_type(field.type);
         slot_desc->set_tuple_id(tuple_info->tuple_id);
-        slot_desc->set_field_id(field);
-        slot_desc->set_table_id(table);
+        slot_desc->set_field_id(field.id);
+        slot_desc->set_table_id(field.table_id);
         slot_desc->set_ref_cnt(1);
     }
+    slot_desc->set_value_len(field.value_len);
     return *slot_desc;
 }
 
-pb::SlotDescriptor& LogicalPlanner::get_values_ref_slot(int64_t table, 
-        int32_t field, pb::PrimitiveType type) {
+pb::SlotDescriptor& LogicalPlanner::get_values_ref_slot(const FieldInfo& field) {
     auto& tuple_info = _values_tuple_info;
     if (tuple_info.tuple_id == -1) {
         tuple_info.tuple_id = _plan_table_ctx->tuple_cnt++;
-        tuple_info.table_id = table;
+        tuple_info.table_id = field.table_id;
         tuple_info.slot_cnt = 1;
     }
-    tuple_info.table_id = table;
+    tuple_info.table_id = field.table_id;
     pb::SlotDescriptor *slot_desc = nullptr;
 
     auto& inner_map = tuple_info.field_slot_mapping;
-    auto inner_iter = inner_map.find(field);
+    auto inner_iter = inner_map.find(field.id);
     if (inner_iter != inner_map.end()) {
         slot_desc = &(inner_iter->second);
     } else {
-        slot_desc = &inner_map[field];
+        slot_desc = &inner_map[field.id];
         slot_desc->set_slot_id(tuple_info.slot_cnt++);
-        slot_desc->set_slot_type(type);
+        slot_desc->set_slot_type(field.type);
         slot_desc->set_tuple_id(tuple_info.tuple_id);
-        slot_desc->set_field_id(field);
-        slot_desc->set_table_id(table);
+        slot_desc->set_field_id(field.id);
+        slot_desc->set_table_id(field.table_id);
     }
+    slot_desc->set_value_len(field.value_len);
     return *slot_desc;
 }
 
@@ -2539,9 +2540,9 @@ int LogicalPlanner::create_term_slot_ref_node(
     }
     pb::SlotDescriptor slot;
     if (options.is_values) {
-        slot = get_values_ref_slot(field_info->table_id, field_info->id, field_info->type);
+        slot = get_values_ref_slot(*field_info);
     } else {
-        slot = get_scan_ref_slot(alias_name, field_info->table_id, field_info->id, field_info->type);
+        slot = get_scan_ref_slot(alias_name, *field_info);
     }
 
     pb::ExprNode* node = expr.add_nodes();
@@ -2556,6 +2557,7 @@ int LogicalPlanner::create_term_slot_ref_node(
     node->mutable_derive_node()->set_tuple_id(slot.tuple_id()); //TODO
     node->mutable_derive_node()->set_slot_id(slot.slot_id());
     node->mutable_derive_node()->set_field_id(slot.field_id());
+    node->mutable_derive_node()->set_value_len(field_info->value_len);
     node->set_col_flag(field_info->flag);
     _ctx->ref_slot_id_mapping[slot.tuple_id()][col_expr->name.to_lower()] = slot.slot_id();
     return 0;

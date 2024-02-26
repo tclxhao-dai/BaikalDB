@@ -392,51 +392,6 @@ inline std::string to_mysql_type_string(pb::PrimitiveType type) {
     }
 }
 
-inline std::string to_mysql_type_full_string(pb::PrimitiveType type) {
-    switch (type) {
-        case pb::BOOL:
-            return "tinyint(3)";
-        case pb::INT8:
-            return "tinyint(3)";
-        case pb::UINT8:
-            return "tinyint(3) unsigned";
-        case pb::INT16:
-            return "smallint(5)";
-        case pb::UINT16:
-            return "smallint(5) unsigned";
-        case pb::INT32:
-            return "int(11)";
-        case pb::UINT32:
-            return "int(11) unsigned";
-        case pb::INT64:
-            return "bigint(21)";
-        case pb::UINT64:
-            return "bigint(21) unsigned";
-        case pb::FLOAT:
-            return "float";
-        case pb::DOUBLE:
-            return "double";
-        case pb::STRING:
-            return "varchar(1024)";
-        case pb::DATETIME:
-            return "datetime";
-        case pb::DATE:
-            return "date";
-        case pb::TIME:
-            return "time";
-        case pb::TIMESTAMP:
-            return "timestamp";
-        case pb::HLL:
-            return "HLL";
-        case pb::BITMAP:
-            return "BITMAP";
-        case pb::TDIGEST:
-            return "TDIGEST";
-        default:
-            return "";
-    }
-}
-
 inline bool is_signed(pb::PrimitiveType type) {
     switch (type) {
         case pb::INT8:

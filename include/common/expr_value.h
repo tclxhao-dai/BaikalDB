@@ -31,6 +31,7 @@ namespace baikaldb {
 
 struct ExprValue {
     pb::PrimitiveType type;
+    int value_len = -1;
     union {
         bool bool_val;
         int8_t int8_val;
@@ -62,6 +63,7 @@ struct ExprValue {
         type = other.type;
         _u = other._u;
         str_val = other.str_val;
+        value_len = other.value_len;
         if (type == pb::BITMAP) {
             _u.bitmap = new(std::nothrow) Roaring();
             *_u.bitmap = *other._u.bitmap;
@@ -75,6 +77,7 @@ struct ExprValue {
             }
             type = other.type;
             _u = other._u;
+            value_len = other.value_len;
             str_val = other.str_val;
             if (type == pb::BITMAP) {
                 _u.bitmap = new(std::nothrow) Roaring();
@@ -88,6 +91,7 @@ struct ExprValue {
         type = other.type;
         _u = other._u;
         str_val = other.str_val;
+        value_len = other.value_len;
         if (type == pb::BITMAP) {
             other._u.bitmap = nullptr;
         }
@@ -105,6 +109,7 @@ struct ExprValue {
                 other._u.bitmap = nullptr;
             }
             str_val = other.str_val;
+            value_len = other.value_len;
         }
         return *this;
     }
@@ -117,6 +122,9 @@ struct ExprValue {
     }
     explicit ExprValue(const pb::ExprValue& value) {
         type = value.type();
+        if (value.has_value_len()) {
+            value_len = value.value_len();
+        }
         switch (type) {
             case pb::BOOL:
                 _u.bool_val = value.bool_val();
@@ -273,6 +281,7 @@ struct ExprValue {
     }
     void to_proto(pb::ExprValue* value) {
         value->set_type(type);
+        value->set_value_len(value_len);
         switch (type) {
             case pb::BOOL:
                 value->set_bool_val(_u.bool_val);
@@ -604,7 +613,7 @@ struct ExprValue {
             case pb::TDIGEST:
                 return str_val;
             case pb::DATETIME:
-                return datetime_to_str(_u.uint64_val);
+                return datetime_to_str(_u.uint64_val, value_len);
             case pb::TIME:
                 return time_to_str(_u.int32_val);
             case pb::TIMESTAMP:
@@ -829,10 +838,13 @@ struct ExprValue {
         ExprValue tmp(pb::TIMESTAMP);
         tmp._u.uint32_val = time(NULL);
         tmp.cast_to(pb::DATETIME);
-        if (precision == 6) {
+        if (precision > 0 and precision <= 6) {
             timeval tv;
             gettimeofday(&tv, NULL);
             tmp._u.uint64_val |= tv.tv_usec;
+            tmp.set_value_len(precision);
+        } else {
+            tmp.set_value_len(0);
         }
         return tmp;
     }
@@ -848,7 +860,7 @@ struct ExprValue {
         ExprValue ret(pb::UINT64);
         return ret;
     }
-    static ExprValue UTC_TIMESTAMP() {
+    static ExprValue UTC_TIMESTAMP(int len = 0) {
         // static int UTC_OFFSET = 8 * 60 * 60;
         time_t current_time;
         struct tm timeinfo;
@@ -861,6 +873,11 @@ struct ExprValue {
         timeval tv;
         gettimeofday(&tv, NULL);
         tmp._u.uint64_val |= tv.tv_usec;
+        if (len >=0 && len <= 6) {
+            tmp.set_value_len(len);
+        } else {
+            tmp.set_value_len(0);
+        }
         return tmp;
     }
     // For string, end-self
@@ -889,6 +906,25 @@ struct ExprValue {
             return ev._u.uint64_val;
         }
     };
+
+    void dt_cast_len() {
+         if (value_len >= 0 and value_len <= 6) {
+             uint64_t p = std::pow(10, (6 - value_len));
+             uint64_t oldmic = _u.uint64_val & 0xffffff;
+             uint64_t newmic = oldmic / p * p;
+             _u.uint64_val = _u.uint64_val & ~0xffffff | newmic;
+         }
+    }
+
+    void set_value_len(int len) {
+        if (value_len == len) {
+            return;
+        }
+        value_len = len;
+        if (type == pb::DATETIME) {
+            dt_cast_len();
+        }
+    }
 };
 
 using ExprValueFlatSet = butil::FlatSet<ExprValue, ExprValue::HashFunction>;

@@ -57,6 +57,7 @@ message DeriveExprNode {
     optional int32 intermediate_slot_id = 7;
     optional int32 field_id = 8;
     optional string field_name = 9;
+    optional int32  value_len = 10;
 };
 
 message ExprNode {

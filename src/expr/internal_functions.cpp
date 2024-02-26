@@ -912,11 +912,17 @@ ExprValue now(const std::vector<ExprValue>& input) {
 }
 
 ExprValue current_timestamp(const std::vector<ExprValue>& input) {
+    if (input.size() > 0) {
+        return ExprValue::Now(input[0].get_numberic<int>());
+    }
     return ExprValue::Now(0);
 }
 
 ExprValue utc_timestamp(const std::vector<ExprValue>& input) {
-    return ExprValue::UTC_TIMESTAMP();
+    if (input.size() > 0) {
+        return ExprValue::UTC_TIMESTAMP(input[0].get_numberic<int>());
+    }
+    return ExprValue::UTC_TIMESTAMP(0);
 }
 
 ExprValue timestamp(const std::vector<ExprValue>& input) {

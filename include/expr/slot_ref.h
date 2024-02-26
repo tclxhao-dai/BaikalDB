@@ -26,13 +26,16 @@ public:
         _tuple_id = node.derive_node().tuple_id();
         _slot_id = node.derive_node().slot_id();
         _field_id = node.derive_node().field_id();
+        _value_len = node.derive_node().has_value_len()? node.derive_node().value_len():-1;
         return 0;
     }
     virtual ExprValue get_value(MemRow* row) {
         if (row == NULL) {
             return ExprValue::Null();
         }
-        return row->get_value(_tuple_id, _slot_id).cast_to(_col_type);
+        ExprValue v = row->get_value(_tuple_id, _slot_id).cast_to(_col_type);
+        v.set_value_len(_value_len);
+        return v;
     }
     virtual ExprValue get_value(const ExprValue& value) {
         return value;
@@ -46,11 +49,16 @@ public:
         s->_node_type = _node_type;
         s->_col_type = _col_type;
         s->_col_flag = _col_flag;
+        s->_value_len = _value_len;
         return s;
     }
 
     int32_t field_id() const {
         return _field_id;
+    }
+
+    int value_len() const {
+        return _value_len;
     }
     /*
     void set_field_id(int32_t field_id) {
@@ -62,10 +70,12 @@ public:
         pb_node->mutable_derive_node()->set_tuple_id(_tuple_id);
         pb_node->mutable_derive_node()->set_slot_id(_slot_id);
         pb_node->mutable_derive_node()->set_field_id(_field_id);
+        pb_node->mutable_derive_node()->set_value_len(_value_len);
     }
 
 private:
     int32_t _field_id;
+    int _value_len = -1;
     friend ExprNode;
 };
 }

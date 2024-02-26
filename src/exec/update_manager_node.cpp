@@ -240,8 +240,9 @@ void UpdateManagerNode::update_record(RuntimeState* state, SmartRecord record) {
     for (size_t i = 0; i < _update_exprs.size(); i++) {
         auto& slot = _update_slots[i];
         auto expr = _update_exprs[i];
-        record->set_value(record->get_field_by_tag(slot.field_id()),
-            expr->get_value(row).cast_to(slot.slot_type()));
+        ExprValue t = expr->get_value(row).cast_to(slot.slot_type());
+        t.set_value_len(slot.value_len());
+        record->set_value(record->get_field_by_tag(slot.field_id()), t);
         auto last_insert_id_expr = expr->get_last_insert_id();
         if (last_insert_id_expr != nullptr) {
             state->last_insert_id = last_insert_id_expr->get_value(row).get_numberic<int64_t>();

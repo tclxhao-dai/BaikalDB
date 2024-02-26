@@ -174,7 +174,7 @@ void FunctionManager::register_operators() {
     register_object_ret("current_date", current_date, pb::DATE);
     register_object_ret("curtime", curtime, pb::TIME);
     register_object_ret("current_time", current_time, pb::TIME);
-    register_object_ret("current_timestamp", current_timestamp, pb::TIMESTAMP);
+    register_object_ret("current_timestamp", current_timestamp, pb::DATETIME);
     register_object_ret("timestamp", timestamp, pb::TIMESTAMP);
     register_object_ret("date", date, pb::DATE);
     register_object_ret("hour", hour, pb::UINT32);

@@ -962,8 +962,16 @@ public:
         return false;
     }
 
-    bool check_field_is_compatible_type(pb::PrimitiveType src_type, pb::PrimitiveType target_type) {
+    bool check_field_is_compatible_type(const pb::FieldInfo& src_field, const pb::FieldInfo& target_field) {
+        auto src_type = src_field.mysql_type();
+        auto target_type = target_field.mysql_type();
         if (src_type == target_type) {
+            if (src_type == pb::DATETIME) {
+                if (src_field.value_len() <= target_field.value_len()) {
+                    return true;
+                }
+                return false;
+            }
             return true;
         }
         switch (src_type) {

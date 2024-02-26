@@ -243,8 +243,7 @@ int LoadPlanner::parse_set_list(pb::LoadNode* node) {
             DB_WARNING("invalid field name in: %s", full_name.c_str());
             return -1;
         }
-        auto slot = get_scan_ref_slot(alias_name, 
-                field_info->table_id, field_info->id, field_info->type);
+        auto slot = get_scan_ref_slot(alias_name, *field_info); 
         _set_slots.emplace_back(slot);
 
         pb::Expr set_expr;

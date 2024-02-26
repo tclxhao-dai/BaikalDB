@@ -201,6 +201,7 @@ message FieldInfo {
     optional bytes encrypt            = 11; //指定加密字段
     optional uint32 flag              = 12;
     optional bytes default_literal    = 13;
+    optional int32 value_len          = 14; //部分字段类型长度
 };
 
 enum IndexType {

@@ -238,6 +238,9 @@ int DDLPlanner::add_column_def(pb::SchemaInfo& table, parser::ColumnDef* column)
         return -1;
     }
     field->set_mysql_type(data_type);
+    if (data_type == pb::DATETIME) {
+        field->set_value_len(column->type->value_len);
+    }
     int option_len = column->options.size();
     for (int opt_idx = 0; opt_idx < option_len; ++opt_idx) {
         parser::ColumnOption* col_option = column->options[opt_idx];
@@ -262,7 +265,7 @@ int DDLPlanner::add_column_def(pb::SchemaInfo& table, parser::ColumnDef* column)
         } else if (col_option->type == parser::COLUMN_OPT_DEFAULT_VAL && col_option->expr != nullptr) {
             if (col_option->expr->to_string() == "(current_timestamp())") {
                 if (is_current_timestamp_specic(data_type)) {
-                    field->set_default_literal(ExprValue::Now().get_string());
+                    field->set_default_literal(ExprValue::Now(field->value_len()).get_string());
                     field->set_default_value("(current_timestamp())");
                     continue;
                 } else {
@@ -1404,7 +1407,7 @@ int DDLPlanner::parse_modify_column(pb::MetaManagerRequest& alter_request,
         for (auto field : info_ptr->fields) {
             index_field_ids.emplace(field.id);
             if (index_id == table_id) {
-                get_scan_ref_slot(iter->first, table_ptr->id, field.id, field.type);
+                get_scan_ref_slot(iter->first, field);
             }
         }
     }
@@ -1441,7 +1444,7 @@ int DDLPlanner::parse_modify_column(pb::MetaManagerRequest& alter_request,
             _ctx->stat_info.error_msg << "modify index column[" << full_name << "] is not supported in this version";
             return -1;
         }
-        auto slot = get_scan_ref_slot(alias_name, field_info->table_id, field_info->id, field_info->type);
+        auto slot = get_scan_ref_slot(alias_name, *field_info);
         update_slots.emplace_back(slot);
         pb::Expr value_expr;
         if (0 != create_expr_tree(set_list[idx]->expr, value_expr, CreateExprOptions())) {

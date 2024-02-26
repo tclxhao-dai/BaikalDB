@@ -193,6 +193,7 @@ int InsertManagerNode::subquery_open(RuntimeState* state) {
                 }
                 // 20190101101112 这种转换现在只支持string类型
                 pb::PrimitiveType field_type = table_field_map[_selected_field_ids[i]]->type;
+                result.set_value_len(table_field_map[_selected_field_ids[i]]->value_len);
                 if (is_datetime_specic(field_type) && result.is_numberic()) {
                     result.cast_to(pb::STRING).cast_to(field_type);
                 } else {
