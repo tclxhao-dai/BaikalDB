@@ -348,6 +348,8 @@ inline uint8_t to_mysql_type(pb::PrimitiveType type) {
         case pb::BITMAP:
         case pb::TDIGEST:
             return MYSQL_TYPE_STRING;
+        case pb::JSON:
+            return MYSQL_TYPE_JSON;
         default:
             return MYSQL_TYPE_STRING;
     }

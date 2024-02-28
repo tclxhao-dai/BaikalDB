@@ -192,6 +192,8 @@ struct FieldInfo {
                 return "BITMAP";
             case pb::TDIGEST:
                 return "TDIGEST";
+            case pb::JSON:
+                return "json";
             default:
                 return "";
         }

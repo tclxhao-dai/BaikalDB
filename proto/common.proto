@@ -64,6 +64,7 @@ enum PrimitiveType {
     HEX = 20;
     BITMAP = 21;
     TDIGEST = 22;
+    JSON = 23;
 };
 
 enum SchemaType {
