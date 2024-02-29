@@ -200,7 +200,7 @@ struct FieldType : public Node {
     uint32_t    flag = 0;
     int32_t     total_len = -1;
     int32_t     float_len = -1;
-    int32_t     value_len = 0;
+    int32_t     value_len = -1;
     String      charset;
     String      collate;
     // items is the element list for enum and set type.

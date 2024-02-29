@@ -243,7 +243,7 @@ int DDLPlanner::add_column_def(pb::SchemaInfo& table, parser::ColumnDef* column,
     }
     field->set_mysql_type(data_type);
     if (data_type == pb::DATETIME) {
-        field->set_value_len(column->type->value_len);
+        field->set_value_len(column->type->value_len == -1 ? 0 : column->type->value_len);
     }
     int option_len = column->options.size();
     for (int opt_idx = 0; opt_idx < option_len; ++opt_idx) {

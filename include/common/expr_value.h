@@ -836,14 +836,16 @@ struct ExprValue {
     }
     static ExprValue Now(int precision = 6) {
         ExprValue tmp(pb::TIMESTAMP);
-        tmp._u.uint32_val = time(NULL);
-        tmp.cast_to(pb::DATETIME);
         if (precision > 0 and precision <= 6) {
             timeval tv;
             gettimeofday(&tv, NULL);
+            tmp._u.uint32_val = tv.tv_sec;
+            tmp.cast_to(pb::DATETIME);
             tmp._u.uint64_val |= tv.tv_usec;
             tmp.set_value_len(precision);
         } else {
+            tmp._u.uint32_val = time(NULL);
+            tmp.cast_to(pb::DATETIME);
             tmp.set_value_len(0);
         }
         return tmp;
@@ -868,14 +870,16 @@ struct ExprValue {
         long offset = timeinfo.tm_gmtoff;
 
         ExprValue tmp(pb::TIMESTAMP);
-        tmp._u.uint32_val = time(NULL) - offset;
-        tmp.cast_to(pb::DATETIME);
-        timeval tv;
-        gettimeofday(&tv, NULL);
-        tmp._u.uint64_val |= tv.tv_usec;
         if (len >=0 && len <= 6) {
+            timeval tv;
+            gettimeofday(&tv, NULL);
+            tmp._u.uint32_val = tv.tv_sec - offset;
+            tmp.cast_to(pb::DATETIME);
+            tmp._u.uint64_val |= tv.tv_usec;
             tmp.set_value_len(len);
         } else {
+            tmp._u.uint32_val = time(NULL) - offset;
+            tmp.cast_to(pb::DATETIME);
             tmp.set_value_len(0);
         }
         return tmp;

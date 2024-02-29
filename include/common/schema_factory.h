@@ -147,7 +147,7 @@ struct FieldInfo {
     bool                deleted = false;
     bool                noskip = false;
     uint32_t            flag   = 0;
-    int32_t             value_len = 0;
+    int32_t             value_len = -1;
     inline std::string to_mysql_type_full_string() {
         switch (type) {
             case pb::BOOL:
