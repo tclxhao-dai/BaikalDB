@@ -178,7 +178,7 @@ void FunctionManager::register_operators() {
     register_object_ret("quote", quote, pb::STRING);
     register_object_ret("char", func_char, pb::STRING);
     register_object_ret("soundex", soundex, pb::STRING);
-
+    register_object_ret("setrange", setrange, pb::STRING);
 
     // date funcs
     register_object_ret("unix_timestamp", unix_timestamp, pb::INT64);
@@ -241,6 +241,8 @@ void FunctionManager::register_operators() {
     register_object_ret("timestamp_to_tso", timestamp_to_tso, pb::INT64);
     register_object_ret("to_days", to_days, pb::INT64);
     register_object_ret("to_seconds", to_seconds, pb::INT64);
+    register_object_ret("timeseq", timeseq, pb::INT64);
+    register_object_ret("timeseq_to_str", timeseq_to_str, pb::STRING);
     // hll funcs
     register_object_ret("hll_add", hll_add, pb::HLL);
     register_object_ret("hll_merge", hll_merge, pb::HLL);
@@ -298,6 +300,9 @@ void FunctionManager::register_operators() {
     register_object_ret("version", version, pb::STRING);
     register_object_ret("last_insert_id", last_insert_id, pb::INT64);
     register_object_ret("last_value", last_value, pb::STRING);
+    register_object_ret("incr_float", incr_float, pb::STRING);
+    register_object_ret("incr_int", incr_int, pb::STRING);
+    register_object_ret("glob_match", glob_match, pb::BOOL);
     //
     register_object_ret("point_distance", point_distance, pb::INT64);
     register_object_ret("cast_to_date", cast_to_date, pb::DATE);
@@ -307,6 +312,16 @@ void FunctionManager::register_operators() {
     register_object_ret("cast_to_signed", cast_to_signed, pb::INT64);
     register_object_ret("cast_to_unsigned", cast_to_unsigned, pb::INT64);
     register_object_ret("cast_to_double", cast_to_double, pb::DOUBLE);
+
+    // redis bitmap funcs
+    register_object_ret("bset", bset, pb::STRING);
+    register_object_ret("band", band, pb::STRING);
+    register_object_ret("bor",  bor, pb::STRING);
+    register_object_ret("bxor", bxor, pb::STRING);
+    register_object_ret("bnot", bnot, pb::STRING);
+    register_object_ret("bget", bget, pb::INT64);
+    register_object_ret("bpos", bpos, pb::INT64);
+    register_object_ret("bcount", bcount, pb::INT64);
 }
 
 int FunctionManager::init() {

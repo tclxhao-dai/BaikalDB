@@ -782,15 +782,9 @@ int DMLNode::update_row(RuntimeState* state, SmartRecord record, MemRow* row) {
         auto last_value_expr = expr->get_last_value();
         if (last_value_expr != nullptr) {
             // 类型检查
-            if (last_value_expr->children_size() == 2 && last_value_expr->children(1)->is_literal()) {
-                std::string frt = last_value_expr->children(1)->get_value(nullptr).get_string();
-                bool is_valid = true;
-                if (frt == "%d") {
-                    is_valid = last_value_expr->children(0)->is_valid_int_cast(row);
-                } else if (frt == "%f") {
-                    is_valid = last_value_expr->children(0)->is_valid_double_cast(row);
-                }
-                if (!is_valid) {
+            if (last_value_expr->children_size() == 1) {
+                ExprValue v = last_value_expr->children(0)->get_value(row);
+                if (v.is_null()) {
                     state->error_code = ER_ILLEGAL_VALUE_FOR_TYPE;
                     state->error_msg << "ERR value is not an integer or out of range";
                     DB_WARNING_STATE(state, "ERR value is not an integer or out of range");

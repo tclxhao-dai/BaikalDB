@@ -89,7 +89,7 @@ ExprValue quote(const std::vector<ExprValue>& input);
 ExprValue func_char(const std::vector<ExprValue>& input);
 ExprValue soundex(const std::vector<ExprValue>& input);
 ExprValue split_part(const std::vector<ExprValue>& input);
-
+ExprValue setrange(const std::vector<ExprValue>& input);
 
 // datetime functions
 ExprValue unix_timestamp(const std::vector<ExprValue>& input);
@@ -144,7 +144,8 @@ ExprValue to_days(const std::vector<ExprValue>& input);
 ExprValue to_seconds(const std::vector<ExprValue>& input);
 ExprValue addtime(const std::vector<ExprValue>& input);
 ExprValue subtime(const std::vector<ExprValue>& input);
-
+ExprValue timeseq(const std::vector<ExprValue>& input);
+ExprValue timeseq_to_str(const std::vector<ExprValue>& input);
 // hll functions
 ExprValue hll_add(const std::vector<ExprValue>& input);
 ExprValue hll_merge(const std::vector<ExprValue>& input);
@@ -201,6 +202,9 @@ ExprValue tdigest_location(const std::vector<ExprValue>& input);
 ExprValue version(const std::vector<ExprValue>& input);
 ExprValue last_insert_id(const std::vector<ExprValue>& input);
 ExprValue last_value(const std::vector<ExprValue>& input);
+ExprValue incr_float(const std::vector<ExprValue>& input);
+ExprValue incr_int(const std::vector<ExprValue>& input);
+ExprValue glob_match(const std::vector<ExprValue>& input);
 ExprValue find_in_set(const std::vector<ExprValue>& input);
 //transfer (latitude A, longitude A), (latitude B, longitude B) to distance of A to B (m)
 ExprValue point_distance(const std::vector<ExprValue>& input);
@@ -212,6 +216,16 @@ ExprValue cast_to_unsigned(const std::vector<ExprValue>& inpt);
 ExprValue cast_to_string(const std::vector<ExprValue>& inpt);
 ExprValue cast_to_double(const std::vector<ExprValue>& inpt);
 ExprValue split_part(const std::vector<ExprValue>& input);
+// bit functions
+ExprValue bset(const std::vector<ExprValue>& input);
+ExprValue band(const std::vector<ExprValue>& input);
+ExprValue bor(const std::vector<ExprValue>& input);
+ExprValue bxor(const std::vector<ExprValue>& input);
+ExprValue bnot(const std::vector<ExprValue>& input);
+ExprValue bget(const std::vector<ExprValue>& input);
+ExprValue bpos(const std::vector<ExprValue>& input);
+ExprValue bcount(const std::vector<ExprValue>& input);
+
 }
 
 /* vim: set ts=4 sw=4 sts=4 tw=100 */

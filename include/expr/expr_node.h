@@ -20,6 +20,7 @@
 #include <unordered_map>
 #include "expr_value.h"
 #include "mem_row.h"
+#include "redis.h"
 #include "proto/expr.pb.h"
 #include "proto/plan.pb.h"
 
@@ -117,55 +118,6 @@ public:
             }
         }
         return nullptr;
-    }
-    virtual bool is_valid_int_cast(MemRow* row) {
-        if (_node_type == pb::SLOT_REF ||
-            _node_type == pb::STRING_LITERAL) {
-            auto v = get_value(row);
-            if (v.type == pb::STRING) {
-                char* end = nullptr;
-                strtoll(v.str_val.c_str(), &end, 10);
-                if (strlen(end) > 0) {
-                    return false;
-                }
-                if (errno == ERANGE) {
-                    errno = 0;
-                    return false;
-                }
-            }
-            return true;
-        }
-        for (auto c : _children) {
-            if (!c->is_valid_int_cast(row)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    virtual bool is_valid_double_cast(MemRow* row) {
-        if (_node_type == pb::SLOT_REF ||
-            _node_type == pb::STRING_LITERAL) {
-            auto v = get_value(row);
-            if (v.type == pb::STRING) {
-                char* end = nullptr;
-                strtod(v.str_val.c_str(), &end);
-                if (strlen(end) > 0) {
-                    return false;
-                }
-                if (errno == ERANGE) {
-                    errno = 0;
-                    return false;
-                }
-            }
-            return true;
-        }
-        for (auto c : _children) {
-            if (!c->is_valid_double_cast(row)) {
-                return false;
-            }
-        }
-        return true;
     }
 
     bool is_row_expr() {
