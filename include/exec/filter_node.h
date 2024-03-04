@@ -121,6 +121,15 @@ public:
             e->reset(state);
         }
     }
+    ExprNode* get_last_value() {
+        for (auto conjunct : _conjuncts) {
+            auto last_value_expr = conjunct->get_last_value();
+            if (last_value_expr != nullptr) {
+                return last_value_expr;
+            }
+        }
+        return nullptr;
+    }
 
     int arrow_steal_conjuncts(std::vector<arrow::compute::Expression>& conjuncts, int64_t& limit);
 

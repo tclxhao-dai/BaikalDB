@@ -139,6 +139,7 @@ message ExtraRes {
     optional int64 wait_cost = 5;         // 限制并发等待时间
     repeated bytes afs_full_names = 6;    // afs full path
     optional bool  get_afs_path_succ = 7; // get afs path succ
+    optional string last_value  = 8;
 };
 
 // 增加新字段时，考虑是否对该字段增删meta标识，对应dblink表场景!!!

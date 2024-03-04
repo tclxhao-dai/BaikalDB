@@ -81,6 +81,7 @@ public:
         return _table_info;
     }
 
+
 protected:
     int init_schema_info(RuntimeState* state);
     void add_delete_conditon_fields();
@@ -129,6 +130,7 @@ protected:
     bool  _ddl_need_write = false;
     int64_t  _ddl_index_id = -1;
     uint64_t _watt_stats_version = 0;
+    ExprNode* _last_value_expr = nullptr; // not own it
 };
 }
 
