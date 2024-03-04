@@ -543,7 +543,9 @@ int Region::execute_cached_cmd(const pb::StoreReq& request, pb::StoreRes& respon
         if (res.has_last_insert_id()) {
             response.set_last_insert_id(res.last_insert_id());
         }
-        
+        if (res.has_extra_res() && res.extra_res().has_last_value()) {
+            response.mutable_extra_res()->set_last_value(res.extra_res().last_value());
+        }
         // if this is the BEGIN cmd, we need to refresh the txn handler
         if (op_type == pb::OP_BEGIN && (nullptr == (txn = _txn_pool.get_txn(txn_id)))) {
             char errmsg[100];
@@ -2048,6 +2050,9 @@ void Region::dml_2pc(const pb::StoreReq& request,
     if (state.last_insert_id != INT64_MIN) {
         response.set_last_insert_id(state.last_insert_id);
     }
+    if (state.last_value != "") {
+        response.mutable_extra_res()->set_last_value((state.last_value));
+    }
     response.set_scan_rows(state.num_scan_rows());
     response.set_read_disk_size(state.read_disk_size());
     response.set_errcode(pb::SUCCESS);
@@ -2400,6 +2405,9 @@ void Region::dml_1pc(const pb::StoreReq& request, pb::OpType op_type,
         response.set_errcode(pb::SUCCESS);
         if (state.last_insert_id != INT64_MIN) {
             response.set_last_insert_id(state.last_insert_id);
+        }
+        if (state.last_value != "") {
+            response.mutable_extra_res()->set_last_value((state.last_value));
         }
     } else {
         response.set_errcode(pb::EXEC_FAIL);
@@ -3229,6 +3237,9 @@ void Region::do_apply(int64_t term, int64_t index, const pb::StoreReq& request, 
                 if (res.has_last_insert_id()) {
                     ((DMLClosure*)done)->response->set_last_insert_id(res.last_insert_id());
                 }
+                if (res.has_extra_res() && res.extra_res().has_last_value()) {
+                    ((DMLClosure*)done)->response->mutable_extra_res()->set_last_value(res.extra_res().last_value());
+                }
             }
             //DB_WARNING("dml_1pc %s", res.trace_nodes().DebugString().c_str());
             break;
@@ -3867,6 +3878,9 @@ void Region::apply_txn_request(const pb::StoreReq& request, braft::Closure* done
         }
         if (res.has_last_insert_id()) {
             ((DMLClosure*)done)->response->set_last_insert_id(res.last_insert_id());
+        }
+        if (res.has_extra_res() && res.extra_res().has_last_value()) {
+            ((DMLClosure*)done)->response->mutable_extra_res()->set_last_value(res.extra_res().last_value());
         }
     }
 }
