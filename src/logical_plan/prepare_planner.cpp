@@ -18,6 +18,7 @@
 #include "insert_planner.h"
 #include "delete_planner.h"
 #include "update_planner.h"
+#include "union_planner.h"
 #include "transaction_planner.h"
 #include "exec_node.h"
 #include "packet_node.h"
@@ -188,6 +189,9 @@ int PreparePlanner::stmt_prepare(const std::string& stmt_name, const std::string
     case parser::NT_DELETE:
         planner.reset(new DeletePlanner(prepare_ctx.get()));
         break;
+    case parser::NT_UNION:
+        planner.reset(new UnionPlanner(prepare_ctx.get()));
+        break;
     default:
         DB_WARNING("un-supported prepare command type: %d", prepare_ctx->stmt_type);
         return -1;
@@ -210,6 +214,9 @@ int PreparePlanner::stmt_prepare(const std::string& stmt_name, const std::string
         return -1;
     }
     prepare_ctx->root->find_place_holder(prepare_ctx->placeholders);
+    for (auto sub_query_ctx : prepare_ctx->sub_query_plans) {
+        sub_query_ctx->root->find_place_holder(prepare_ctx->placeholders);
+    }
     /*
     // 包括类型推导与常量表达式计算
     ret = ExprOptimize().analyze(prepare_ctx.get());
@@ -255,8 +262,14 @@ int PreparePlanner::stmt_execute(const std::string& stmt_name, std::vector<pb::E
     _ctx->mutable_tuple_descs()->assign(tuple_descs.begin(), tuple_descs.end());
     _ctx->ref_slot_id_mapping.insert(prepare_ctx->ref_slot_id_mapping.begin(),
                                      prepare_ctx->ref_slot_id_mapping.end());
+    _ctx->has_derived_table = prepare_ctx->has_derived_table;
+    _ctx->derived_table_ctx_mapping.insert(prepare_ctx->derived_table_ctx_mapping.begin(),
+                                           prepare_ctx->derived_table_ctx_mapping.end());
+    _ctx->slot_column_mapping.insert(prepare_ctx->slot_column_mapping.begin(),
+                                     prepare_ctx->slot_column_mapping.end());
+
     // TODO dml的plan复用
-    if (!prepare_ctx->is_select) {
+    if (!prepare_ctx->is_select || prepare_ctx->sub_query_plans.size() > 0) {
         // enable_2pc=true or table has global index need generate txn_id
         set_dml_txn_state(prepare_ctx->prepared_table_id);
         _ctx->plan.CopyFrom(prepare_ctx->plan);
@@ -266,6 +279,17 @@ int PreparePlanner::stmt_execute(const std::string& stmt_name, std::vector<pb::E
             return -1;
         }
         _ctx->root->find_place_holder(_ctx->placeholders);
+
+        for (auto sub_query_ctx : prepare_ctx->sub_query_plans) {
+            int ret = sub_query_ctx->create_plan_tree();
+            if (ret < 0) {
+                DB_WARNING("Failed to pb_plan to execnode");
+                return -1;
+            }
+            _ctx->add_sub_ctx(sub_query_ctx);
+            sub_query_ctx->root->find_place_holder(_ctx->placeholders);
+        }
+
     } else {
         if (client->txn_id == 0) {
             prepare_ctx->get_runtime_state()->set_single_sql_autocommit(true);
