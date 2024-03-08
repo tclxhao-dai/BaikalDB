@@ -3996,7 +3996,7 @@ FloatingPointType:
 BitValueType:
     BIT
     {
-        $$ = MYSQL_TYPE_BIT;
+        $$ = MYSQL_TYPE_LONG;
     }
     ;
 
