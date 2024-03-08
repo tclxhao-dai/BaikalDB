@@ -428,8 +428,11 @@ int SelectManagerNode::fetcher_primary_pipeline(
     auto fetcher_primary_func = [&](FetcherPrimaryInfo& fetcher_primary_info) {
         std::string *region_primary = new std::string("");
         fetcher_primary_info.pos_index.set_index_id(main_table_id);
+        fetcher_primary_info.pos_index.set_left_field_cnt(pri_info->fields.size());
+        fetcher_primary_info.pos_index.set_left_open(false);
+        fetcher_primary_info.pos_index.set_is_eq(true);
         fetcher_primary_info.pos_index.SerializeToString(region_primary);
-        fetcher_primary_info.pos_index.clear_primary_keys();
+        fetcher_primary_info.pos_index.clear_ranges();
         fetcher_primary_info.region_primary_list.push_back(region_primary);
         fetcher->fetcher_store.fetcher_select_with_region_primary(state, &fetcher_primary_info.region_info, fetcher_primary_info.region_primary_list[fetcher_primary_info.cur_idx], _children[0], client_conn->seq_id, client_conn->seq_id);
         fetcher_primary_info.cur_idx++;
@@ -464,8 +467,10 @@ int SelectManagerNode::fetcher_primary_pipeline(
             region_primary_map[region_info.region_id()].region_info = region_info;
         }
         auto &fetcher_primary_info = region_primary_map[region_info.region_id()];
-        fetcher_primary_info.pos_index.add_primary_keys(key.data());
-        if (fetcher_primary_info.pos_index.primary_keys_size() >= fetcher_primary_count) {
+        auto range = fetcher_primary_info.pos_index.add_ranges();
+        range->set_left_key(key.data());
+        range->set_left_full(true); 
+        if (fetcher_primary_info.pos_index.ranges_size() >= fetcher_primary_count) {
             fetcher_primary_func(fetcher_primary_info);
         }
         return 0;
@@ -483,7 +488,7 @@ int SelectManagerNode::fetcher_primary_pipeline(
     }
 
     for (auto &kv : region_primary_map) {
-        if (kv.second.pos_index.primary_keys_size() != 0) {
+        if (kv.second.pos_index.ranges_size() != 0) {
             fetcher_primary_func(kv.second);
         }
     }
@@ -512,18 +517,14 @@ int SelectManagerNode::fetcher_primary(
     auto client_conn = state->client_conn();
     pb::PossibleIndex pos_index;
     pos_index.set_index_id(main_table_id);
+    pos_index.set_left_field_cnt(pri_info->fields.size());
+    pos_index.set_left_open(false);
+    pos_index.set_is_eq(true);
 
     auto add_one_record = [&](MutTableKey &key) -> int {
         auto range = pos_index.add_ranges();
         range->set_left_key(key.data());
         range->set_left_full(key.get_full());
-        range->set_right_key(key.data());
-        range->set_right_full(key.get_full());
-        range->set_left_field_cnt(pri_info->fields.size());
-        range->set_right_field_cnt(pri_info->fields.size());
-        range->set_left_open(false);
-        range->set_right_open(false);
-
     };
 
     auto ret = construct_primary_possible_index(fetcher->fetcher_store, fetcher->scan_index, state, exec_node, main_table_id, add_one_record, pri_info, limit);

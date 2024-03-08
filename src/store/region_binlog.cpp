@@ -480,7 +480,13 @@ int Region::binlog_scan_when_restart() {
     left_record->set_value(left_record->get_field_by_tag(1), value);
     right_record->decode("");
 
-    IndexRange range(left_record.get(), right_record.get(), _binlog_pri.get(), _binlog_pri.get(),
+    MutTableKey  left_key, right_key;
+    if (left_record->encode_key(*_binlog_pri.get(), left_key, _binlog_pri.get()->fields.size(), false, false) != 0) {
+        DB_FATAL("Fail to encode_key left, table:%ld", _binlog_table.get()->id);
+        return -1;
+    }
+    left_key.set_full(true);
+    IndexRange range(left_key, right_key, _binlog_pri.get(), _binlog_pri.get(),
                         &_region_info, 1, 0, false, false, false);
 
     std::map<int32_t, FieldInfo*> field_ids;
@@ -1202,7 +1208,13 @@ int64_t Region::read_data_cf_oldest_ts() {
     left_record->set_value(left_record->get_field_by_tag(1), value);
     right_record->decode("");
 
-    IndexRange range(left_record.get(), right_record.get(), _binlog_pri.get(), _binlog_pri.get(),
+    MutTableKey  left_key, right_key;
+    if (left_record->encode_key(*_binlog_pri.get(), left_key, _binlog_pri.get()->fields.size(), false, false) != 0) {
+        DB_FATAL("Fail to encode_key left, table:%ld", _binlog_table.get()->id);
+        return -1;
+    }
+    left_key.set_full(true);
+    IndexRange range(left_key, right_key, _binlog_pri.get(), _binlog_pri.get(),
                         &_region_info, 1, 0, false, false, false);
 
     std::map<int32_t, FieldInfo*> field_ids;
@@ -1388,7 +1400,14 @@ void Region::read_binlog(const pb::StoreReq* request,
     left_record->set_value(left_record->get_field_by_tag(1), value);
     right_record->decode("");
 
-    IndexRange range(left_record.get(), right_record.get(), _binlog_pri.get(), _binlog_pri.get(),
+    MutTableKey  left_key, right_key;
+    if (left_record->encode_key(*_binlog_pri.get(), left_key, _binlog_pri.get()->fields.size(), false, false) != 0) {
+        DB_FATAL("Fail to encode_key left, table:%ld", _binlog_table.get()->id);
+        return ;
+    }
+
+    left_key.set_full(true);
+    IndexRange range(left_key, right_key, _binlog_pri.get(), _binlog_pri.get(),
                         &_region_info, 1, 0, false, false, false);
 
     std::map<int32_t, FieldInfo*> field_ids;

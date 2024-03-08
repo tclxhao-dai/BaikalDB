@@ -806,22 +806,7 @@ int MutilReverseIndex<Schema>::init_term_executor(
     _reverse_indexes.push_back(reverse_iter);
     std::string word;
     auto& range = fulltext_index_info.possible_index().ranges(0);
-    if (range.has_left_key()) {
-        word = range.left_key();
-    } else {
-        SmartRecord record = SchemaFactory::get_instance()->new_record(_table_info.id);
-        record->decode(range.left_pb_record());
-        auto index_info = SchemaFactory::get_instance()->get_index_info_ptr(index_id);
-        if (index_info == nullptr || index_info->id == -1) {
-            DB_WARNING("no index_info found for index id: %ld", index_id);
-            return -1;
-        }
-        int ret = record->get_reverse_word(*index_info, word);
-        if (ret < 0) {
-            DB_WARNING("index_info to word fail for index_id: %ld", index_id);
-            return ret;
-        }
-    }
+    word = range.left_key();
     reverse_iter->create_executor(_txn, _index_info, _table_info, word, 
         fulltext_index_info.possible_index().ranges(0).match_mode(),
         std::vector<ExprNode*>(), _is_fast);
