@@ -224,7 +224,7 @@ void FunctionManager::register_operators() {
     register_object_ret("time_to_sec", time_to_sec, pb::UINT32);
     register_object_ret("sec_to_time", sec_to_time, pb::TIME);
     register_object_ret("weekday", weekday, pb::UINT32);
-    register_object_ret("datediff", datediff, pb::UINT32);
+    register_object_ret("datediff", datediff, pb::INT32);
     register_object_ret("date_add", date_add, pb::DATETIME);
     register_object_ret("date_sub", date_sub, pb::DATETIME);
     register_object_ret("extract", extract, pb::UINT32);

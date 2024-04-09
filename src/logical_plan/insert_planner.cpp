@@ -320,13 +320,13 @@ int InsertPlanner::fill_record_field(const parser::ExprNode* parser_expr, SmartR
         return -1;
     }
     ExprValue value = expr->get_value(nullptr);
-    value.value_len = field.value_len;
     // 20190101101112 这种转换现在只支持string类型
     if (is_datetime_specic(field.type) && value.is_numberic()) {
         value.cast_to(pb::STRING).cast_to(field.type);
     } else {
         value.cast_to(field.type);
     }
+    value.set_value_len(field.value_len);
     expr->close();
     delete expr;
     // fill default
