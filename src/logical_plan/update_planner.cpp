@@ -161,6 +161,7 @@ int UpdatePlanner::create_limit_node() {
     if (_limit_count.nodes_size() > 0) {
         limit->mutable_count_expr()->CopyFrom(_limit_count);
     }
+    _ctx->enable_2pc = true;
     return 0;
 }
 
