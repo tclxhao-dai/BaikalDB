@@ -47,7 +47,7 @@ private:
     int parse_rename_user(pb::UserPrivilege& user_privilege);
     int parse_priv(pb::UserPrivilege& user_privilege);
     int parse_set_password(pb::UserPrivilege& user_privilege);
-    int add_user_specs(pb::UserPrivilege& user_privilege, Vector<UserSpec*>& specs);
+    int add_user_specs(pb::UserPrivilege& user_privilege, parser::Vector<parser::UserSpec*>& specs);
 
     int add_column_def(pb::SchemaInfo& table, parser::ColumnDef* column, const std::string& old_field_name = "");
     int add_constraint_def(pb::SchemaInfo& table, parser::Constraint* constraint,parser::AlterTableSpec* spec);
