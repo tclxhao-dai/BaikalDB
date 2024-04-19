@@ -31,6 +31,12 @@ namespace baikaldb {
 #else
     DEFINE_string(db_version, "5.7.16-BaikalDB", "db version");
 #endif
+#define INPUT_CHECK_NULL \
+for (auto& s: input) { \
+    if (s.is_null()) { \
+        return ExprValue::Null(); \
+    } \
+}
 static const int32_t DATE_FORMAT_LENGTH = 128;
 static const std::vector<std::string> day_names = {
         "Sunday", "Monday", "Tuesday", "Wednesday",
@@ -1129,6 +1135,7 @@ ExprValue utc_time(const std::vector<ExprValue>& input) {
 }
 
 ExprValue period_add(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 2) {
         return ExprValue::Null();
     }
@@ -1149,6 +1156,7 @@ ExprValue period_add(const std::vector<ExprValue>& input) {
 }
 
 ExprValue period_diff(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 2) {
         return ExprValue::Null();
     }
@@ -1167,6 +1175,7 @@ ExprValue period_diff(const std::vector<ExprValue>& input) {
 }
 
 ExprValue minute(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 1) {
         return ExprValue::Null();
     }
@@ -1178,6 +1187,7 @@ ExprValue minute(const std::vector<ExprValue>& input) {
 }
 
 ExprValue func_time(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 1) {
         return ExprValue::Null();
     }
@@ -1187,6 +1197,7 @@ ExprValue func_time(const std::vector<ExprValue>& input) {
 }
 
 ExprValue func_quarter(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 1) {
         return ExprValue::Null();
     }
@@ -1201,6 +1212,7 @@ ExprValue func_quarter(const std::vector<ExprValue>& input) {
 }
 
 ExprValue microsecond(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 1) {
         return ExprValue::Null();
     }
@@ -1234,6 +1246,7 @@ ExprValue microsecond(const std::vector<ExprValue>& input) {
 }
 
 ExprValue second(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 1) {
         return ExprValue::Null();
     }
@@ -1245,6 +1258,7 @@ ExprValue second(const std::vector<ExprValue>& input) {
 }
 
 ExprValue timestampadd(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 3) {
         return ExprValue::Null();
     }
@@ -1267,6 +1281,7 @@ ExprValue timestampadd(const std::vector<ExprValue>& input) {
 }
 
 ExprValue timestamp(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() == 0 || input.size() > 2) {
         return ExprValue::Null();
     }
@@ -1279,13 +1294,9 @@ ExprValue timestamp(const std::vector<ExprValue>& input) {
 }
 
 ExprValue date_format(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 2) {
         return ExprValue::Null();
-    }
-    for (auto& s : input) {
-        if (s.is_null()) {
-            return ExprValue::Null();
-        }
     }
     ExprValue tmp = input[0];
     time_t t = tmp.cast_to(pb::TIMESTAMP)._u.uint32_val;
@@ -1298,26 +1309,18 @@ ExprValue date_format(const std::vector<ExprValue>& input) {
     return format_result;
 }
 ExprValue str_to_date(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 2) {
         return ExprValue::Null();
-    }
-    for (auto& s : input) {
-        if (s.is_null()) {
-            return ExprValue::Null();
-        }
     }
     ExprValue tmp = input[0];
     return tmp.cast_to(pb::DATETIME);
 }
 
 ExprValue time_format(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 2) {
         return ExprValue::Null();
-    }
-    for (auto& s : input) {
-        if (s.is_null()) {
-            return ExprValue::Null();
-        }
     }
     ExprValue tmp = input[0];
     struct tm t_result;
@@ -1334,6 +1337,7 @@ ExprValue time_format(const std::vector<ExprValue>& input) {
 }
 
 ExprValue to_days(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 1) {
         return ExprValue::Null();
     }
@@ -1345,6 +1349,7 @@ ExprValue to_days(const std::vector<ExprValue>& input) {
 }
 
 ExprValue to_seconds(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 1) {
         return ExprValue::Null();
     }
@@ -1357,13 +1362,9 @@ ExprValue to_seconds(const std::vector<ExprValue>& input) {
 
 
 ExprValue convert_tz(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 3){
         return ExprValue::Null();
-    }
-    for (auto& s : input) {
-        if (s.is_null()) {
-            return ExprValue::Null();
-        }
     }
     ExprValue time = input[0];
     ExprValue from_tz = input[1];
@@ -1383,13 +1384,9 @@ ExprValue convert_tz(const std::vector<ExprValue>& input) {
 }
 
 ExprValue timediff(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() < 2) {
         return ExprValue::Null();
-    }
-    for (auto& s : input) {
-        if (s.is_null()) {
-            return ExprValue::Null();
-        }
     }
     ExprValue arg1 = input[0];
     ExprValue arg2 = input[1];
@@ -1400,15 +1397,10 @@ ExprValue timediff(const std::vector<ExprValue>& input) {
     return ret;
 }
 ExprValue timestampdiff(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() < 3) {
         return ExprValue::Null();
     }
-    for (auto& s : input) {
-        if (s.is_null()) {
-            return ExprValue::Null();
-        }
-    }
-
     ExprValue arg2 = input[1];
     ExprValue arg3 = input[2];
     int32_t seconds = arg3.cast_to(pb::TIMESTAMP)._u.uint32_val - 
@@ -1940,6 +1932,7 @@ ExprValue date_sub(const std::vector<ExprValue>& input) {
 }
 
 ExprValue addtime(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 2) {
         return ExprValue::Null();
     }
@@ -1964,6 +1957,7 @@ ExprValue addtime(const std::vector<ExprValue>& input) {
 }
 
 ExprValue subtime(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 2) {
         return ExprValue::Null();
     }
@@ -2752,6 +2746,7 @@ ExprValue cast_to_double(const std::vector<ExprValue>& input) {
 }
 
 ExprValue find_in_set(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 2) {
         return ExprValue::Null();
     }
@@ -2770,6 +2765,7 @@ ExprValue find_in_set(const std::vector<ExprValue>& input) {
 }
 
 ExprValue export_set(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 4 && input.size() != 5) {
         return ExprValue::Null();
     }
@@ -2806,6 +2802,7 @@ ExprValue export_set(const std::vector<ExprValue>& input) {
 }
 
 ExprValue to_base64(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 1) {
         return ExprValue::Null();
     }
@@ -2818,6 +2815,7 @@ ExprValue to_base64(const std::vector<ExprValue>& input) {
 }
 
 ExprValue from_base64(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 1) {
         return ExprValue::Null();
     }
@@ -2830,6 +2828,7 @@ ExprValue from_base64(const std::vector<ExprValue>& input) {
 }
 
 ExprValue make_set(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() < 2) {
         return ExprValue::Null();
     }
@@ -2857,6 +2856,7 @@ ExprValue make_set(const std::vector<ExprValue>& input) {
 }
 
 ExprValue oct(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 1) {
         return ExprValue::Null();
     }
@@ -2870,6 +2870,7 @@ ExprValue oct(const std::vector<ExprValue>& input) {
 }
 
 ExprValue hex(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 1) {
         return ExprValue::Null();
     }
@@ -2897,6 +2898,7 @@ ExprValue hex(const std::vector<ExprValue>& input) {
 }
 
 ExprValue bin(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 1) {
         return ExprValue::Null();
     }
@@ -2917,6 +2919,7 @@ ExprValue bin(const std::vector<ExprValue>& input) {
 }
 
 ExprValue space(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 1) {
         return ExprValue::Null();
     }
@@ -2934,6 +2937,7 @@ ExprValue space(const std::vector<ExprValue>& input) {
 }
 
 ExprValue unhex(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 1) {
         return ExprValue::Null();
     }
@@ -2965,6 +2969,7 @@ ExprValue unhex(const std::vector<ExprValue>& input) {
 }
 
 ExprValue elt(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() <= 1) {
         return ExprValue::Null();
     }
@@ -2979,6 +2984,7 @@ ExprValue elt(const std::vector<ExprValue>& input) {
 }
 
 ExprValue char_length(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 1) {
         return ExprValue::Null();
     }
@@ -3014,6 +3020,7 @@ ExprValue char_length(const std::vector<ExprValue>& input) {
 }
 
 ExprValue format(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 2) {
         return ExprValue::Null();
     }
@@ -3038,6 +3045,7 @@ ExprValue format(const std::vector<ExprValue>& input) {
 }
 
 ExprValue field(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() < 2) {
         return ExprValue::Null();
     }
@@ -3055,6 +3063,7 @@ ExprValue field(const std::vector<ExprValue>& input) {
 }
 
 ExprValue quote(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 1) {
         return ExprValue::Null();
     }
@@ -3077,6 +3086,7 @@ ExprValue quote(const std::vector<ExprValue>& input) {
 }
 
 ExprValue func_char(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() < 1) {
         return ExprValue::Null();
     }
@@ -3099,6 +3109,7 @@ ExprValue func_char(const std::vector<ExprValue>& input) {
 }
 
 ExprValue soundex(const std::vector<ExprValue>& input) {
+    INPUT_CHECK_NULL;
     if (input.size() != 1) {
         return ExprValue::Null();
     }
