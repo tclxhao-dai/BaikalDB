@@ -45,9 +45,6 @@ public:
         if (ret < 0) {
             return ret;
         }
-        if (node.derive_node().has_value_len()) {
-            _value.value_len = node.derive_node().value_len();
-        }
         switch (node.node_type()) {
             case pb::NULL_LITERAL: {
                 _value.type = pb::NULL_TYPE;
@@ -143,7 +140,6 @@ public:
 
     virtual void transfer_pb(pb::ExprNode* pb_node) {
         ExprNode::transfer_pb(pb_node);
-        pb_node->mutable_derive_node()->set_value_len(_value.value_len);
         switch (node_type()) {
             case pb::NULL_LITERAL:
                 break;
@@ -167,9 +163,6 @@ public:
             case pb::TIME_LITERAL:
             case pb::TIMESTAMP_LITERAL:
                 pb_node->mutable_derive_node()->set_int_val(_value.get_numberic<int64_t>());
-                if (_value.value_len != -1) {
-                    pb_node->mutable_derive_node()->set_value_len(_value.value_len);
-                }
                 break;
             case pb::PLACE_HOLDER_LITERAL:
                 pb_node->mutable_derive_node()->set_int_val(_place_holder_id); 

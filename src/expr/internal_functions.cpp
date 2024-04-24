@@ -2707,7 +2707,7 @@ ExprValue cast_to_datetime(const std::vector<ExprValue>& input) {
     }
     ExprValue tmp = input[0];
     tmp.cast_to(pb::DATETIME);
-    tmp.set_value_len(0);
+    tmp.set_precision_len(0);
     return tmp;
 }
 

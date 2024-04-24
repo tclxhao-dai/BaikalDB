@@ -779,7 +779,8 @@ bool ShowHelper::_show_create_table(const SmartSocket& client, const std::vector
             continue;
         }
         oss << "  " << "`" << field.short_name << "` ";
-        oss << field.to_mysql_type_full_string() << " ";
+        oss << to_mysql_type_full_string(field.type, field.float_total_len, field.float_precision_len);
+        oss << " ";
         oss << (field.can_null ? "NULL " : "NOT NULL ");
         if (!field.default_expr_value.is_null()) {
             oss << "DEFAULT ";
@@ -1547,7 +1548,7 @@ bool ShowHelper::_show_full_columns(const SmartSocket& client, const std::vector
             }
         }
         row.emplace_back(split_vec[split_vec.size() - 1]);
-        row.emplace_back(field.to_mysql_type_full_string());
+        row.emplace_back(to_mysql_type_full_string(field.type, field.float_total_len, field.float_precision_len));
         row.emplace_back("NULL");
         row.emplace_back(field.can_null ? "YES" : "NO");
         if (field_index.count(field.id) == 0) {
@@ -1683,7 +1684,7 @@ bool ShowHelper::_show_columns(const SmartSocket& client, const std::vector<std:
             }
         }
         row.emplace_back(split_vec[split_vec.size() - 1]);
-        row.emplace_back(field.to_mysql_type_full_string());
+        row.emplace_back(to_mysql_type_full_string(field.type, field.float_total_len, field.float_precision_len));
         row.emplace_back(field.can_null ? "YES" : "NO");
         if (field_index.count(field.id) == 0) {
             row.emplace_back(" ");

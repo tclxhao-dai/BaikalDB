@@ -631,7 +631,7 @@ void SelectPlanner::add_single_table_columns(const std::string& table_name, Tabl
             continue;
         }
 
-        pb::SlotDescriptor slot = get_scan_ref_slot(table_name, field);
+        pb::SlotDescriptor slot = get_scan_ref_slot(table_name, table_info->id, field.id, field.type);
         pb::Expr select_expr;
         select_expr.set_database(table_info->name.substr(0, table_info->name.find(".")));
         select_expr.set_table(table_info->short_name);
@@ -642,7 +642,6 @@ void SelectPlanner::add_single_table_columns(const std::string& table_name, Tabl
         node->mutable_derive_node()->set_tuple_id(slot.tuple_id()); //TODO
         node->mutable_derive_node()->set_slot_id(slot.slot_id());
         node->mutable_derive_node()->set_field_id(slot.field_id());
-        node->mutable_derive_node()->set_value_len(field.value_len);
         node->set_col_flag(field.flag);
 
         std::string& select_name = field.short_name;
@@ -896,7 +895,7 @@ int SelectPlanner::get_base_subscribe_scan_ref_slot() {
         return -1;
     }
     for (const auto& field_info : pk_field_info_ptr->fields) {
-        get_scan_ref_slot(_ctx->base_subscribe_table_name, field_info);
+        get_scan_ref_slot(_ctx->base_subscribe_table_name, field_info.table_id, field_info.id, field_info.type);
     }
 
     auto table_info_ptr = _factory->get_table_info_ptr(_ctx->base_subscribe_table_id);
@@ -906,7 +905,7 @@ int SelectPlanner::get_base_subscribe_scan_ref_slot() {
     }
     for (const auto& field_info : table_info_ptr->fields) {
         if (field_info.short_name == _ctx->base_subscribe_filter_field) {
-            get_scan_ref_slot(_ctx->base_subscribe_table_name, field_info);
+            get_scan_ref_slot(_ctx->base_subscribe_table_name, field_info.table_id, field_info.id, field_info.type);
             break;
         }
     }

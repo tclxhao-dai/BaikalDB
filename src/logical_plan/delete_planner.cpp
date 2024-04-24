@@ -207,7 +207,7 @@ int DeletePlanner::create_delete_node(pb::PlanNode* delete_node) {
         return -1;
     }
     for (auto& field : pk->fields) {
-        auto& slot = get_scan_ref_slot(_current_tables[0], field);
+        auto& slot = get_scan_ref_slot(_current_tables[0], table_id, field.id, field.type);
         _delete->add_primary_slots()->CopyFrom(slot);
     }
     return 0;

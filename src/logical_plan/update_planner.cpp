@@ -133,7 +133,7 @@ int UpdatePlanner::create_update_node(pb::PlanNode* update_node) {
         return -1;
     }
     for (auto& field : pk->fields) {
-        auto& slot = get_scan_ref_slot(try_to_lower(_current_tables[0]), field);
+        auto& slot = get_scan_ref_slot(try_to_lower(_current_tables[0]), table_id, field.id, field.type);
         update->add_primary_slots()->CopyFrom(slot);
     }
     if (_ctx->row_ttl_duration > 0 || _ctx->row_ttl_duration == -1) {
@@ -207,7 +207,7 @@ int UpdatePlanner::parse_kv_list() {
             DB_WARNING("invalid field name in");
             return -1;
         }
-        auto slot = get_scan_ref_slot(alias_name, *field_info);
+        auto slot = get_scan_ref_slot(alias_name, field_info->table_id, field_info->id, field_info->type);
         _update_slots.push_back(slot);
         update_field_ids.insert(field_info->id);
         // 更新分区键,走全局索引流程
@@ -224,7 +224,6 @@ int UpdatePlanner::parse_kv_list() {
             DB_WARNING("create update value expr failed");
             return -1;
         }
-        value_expr.mutable_nodes(0)->mutable_derive_node()->set_value_len(field_info->value_len);
         if (field_info->on_update_value == "(current_timestamp())" 
                 || field_info->default_value == "(current_timestamp())") {
             if (value_expr.nodes(0).node_type() == pb::NULL_LITERAL) {
@@ -232,7 +231,7 @@ int UpdatePlanner::parse_kv_list() {
                 node->set_num_children(0);
                 node->set_node_type(pb::STRING_LITERAL);
                 node->set_col_type(pb::STRING);
-                node->mutable_derive_node()->set_string_val(ExprValue::Now(field_info->value_len).get_string());
+                node->mutable_derive_node()->set_string_val(ExprValue::Now(field_info->float_precision_len).get_string());
             }
         } else if (value_expr.nodes(0).node_type() == pb::NULL_LITERAL
             && !field_info->can_null) {
@@ -254,9 +253,8 @@ int UpdatePlanner::parse_kv_list() {
             node->set_num_children(0);
             node->set_node_type(pb::STRING_LITERAL);
             node->set_col_type(pb::STRING);
-            node->mutable_derive_node()->set_value_len(field.value_len);
-            node->mutable_derive_node()->set_string_val(ExprValue::Now(field.value_len).get_string());
-            auto slot = get_scan_ref_slot(table_info.name, field);
+            node->mutable_derive_node()->set_string_val(ExprValue::Now(field.float_precision_len).get_string());
+            auto slot = get_scan_ref_slot(table_info.name, field.table_id, field.id, field.type);
             _update_slots.push_back(slot);
             _update_values.push_back(value_expr);
         }

@@ -495,10 +495,11 @@ int SchemaFactory::update_table_internal(SchemaMapping& background, const pb::Sc
         field_info.noskip = boost::algorithm::icontains(field_info.comment, "noskip");
         field_info.default_value = field.default_value();
         field_info.on_update_value = field.on_update_value();
-        if (field.has_value_len()) {
-            field_info.value_len = field.value_len();
-        } else if (field.mysql_type() == pb::DATETIME) {
-            field_info.value_len = 6;
+        if (field.has_float_total_len()) {
+            field_info.float_total_len = field.float_total_len();
+        }
+        if (field.has_float_precision_len()) {
+            field_info.float_precision_len = field.float_precision_len();
         }
         if (field.has_default_value()) {
             field_info.default_expr_value.type = pb::STRING;
@@ -2987,7 +2988,7 @@ int SchemaFactory::fill_default_value(SmartRecord record, FieldInfo& field) {
     }
     ExprValue default_value = field.default_expr_value;
     if (field.default_value == "(current_timestamp())") {
-        default_value = ExprValue::Now(field.value_len);
+        default_value = ExprValue::Now(field.float_precision_len);
         default_value.cast_to(field.type);
     }
     // mysql非strict mode，不填not null字段会补充空串/0等

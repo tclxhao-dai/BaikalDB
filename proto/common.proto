@@ -126,7 +126,6 @@ message SlotDescriptor {
     optional int64 table_id = 4; //从表中获取才填
     optional int32 field_id = 5; //从表中获取才填
     optional int32 ref_cnt  = 6; //引用这个slot的数量，用来给FULLTEXT做索引覆盖查询
-    optional int32 value_len = 7; //字段的值的长度
 
 };
 
@@ -146,5 +145,4 @@ message ExprValue {
     optional float         float_val  = 7;
     optional double        double_val = 8;
     optional bytes         string_val = 9;
-    optional int32         value_len  = 10;
 };

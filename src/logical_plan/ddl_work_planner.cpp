@@ -98,7 +98,7 @@ int DDLWorkPlanner::create_index_ddl_plan() {
             if (field_id_set.count(field_info.id) == 0) {
                 field_id_set.insert(field_info.id);
                 DB_NOTICE("insert index_id_%ld field_id_%d", index_ptr->id, field_info.id);
-                get_scan_ref_slot(table_name, field_info);
+                get_scan_ref_slot(table_name, field_info.table_id, field_info.id, field_info.type);
             }
         }
     };

@@ -1446,11 +1446,12 @@ void TableManager::modify_field(const pb::MetaManagerRequest& request,
                         //修改default value需谨慎，会导致存储null数据的值变成新默认值
                         mem_field.set_default_value(field.default_value());
                     }
-                } 
-                if (field.has_value_len()) {
-                    mem_field.set_value_len(field.value_len());
-                } else if (field.mysql_type() == pb::DATETIME) {
-                    mem_field.set_value_len(6);
+                }
+                if (field.has_float_total_len()) {
+                    mem_field.set_float_total_len(field.float_total_len());
+                }
+                if (field.has_float_precision_len()) {
+                    mem_field.set_float_precision_len(field.float_precision_len());
                 }
                 if (field.has_new_field_name()) {
                     mem_field.set_field_name(field.new_field_name());

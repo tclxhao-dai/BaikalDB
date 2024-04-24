@@ -69,6 +69,7 @@ protected:
     std::vector<int32_t>        _seq_ids; 
     size_t  _uniq_index_number = 0;
     size_t  _affected_index_num = 0;
+    std::map<int32_t, FieldInfo*> _update_fields;
     std::vector<SmartRecord> _insert_scan_records;
     std::vector<SmartRecord> _del_scan_records;
 };

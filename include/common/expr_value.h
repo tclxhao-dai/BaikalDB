@@ -31,7 +31,7 @@ namespace baikaldb {
 
 struct ExprValue {
     pb::PrimitiveType type;
-    int value_len = -1;
+    int32_t float_precision_len = -1; // -1代表未定义精度，保留原值的最大精度。0代表不保留小数点部分
     union {
         bool bool_val;
         int8_t int8_val;
@@ -50,6 +50,7 @@ struct ExprValue {
 
     explicit ExprValue(pb::PrimitiveType type_ = pb::NULL_TYPE) : type(type_) {
         _u.int64_val = 0;
+        float_precision_len = -1;
         if (type_ == pb::BITMAP) {
             _u.bitmap = new(std::nothrow) Roaring();
         } else if (type_ == pb::TDIGEST) {
@@ -63,7 +64,7 @@ struct ExprValue {
         type = other.type;
         _u = other._u;
         str_val = other.str_val;
-        value_len = other.value_len;
+        float_precision_len = other.float_precision_len;
         if (type == pb::BITMAP) {
             _u.bitmap = new(std::nothrow) Roaring();
             *_u.bitmap = *other._u.bitmap;
@@ -77,7 +78,7 @@ struct ExprValue {
             }
             type = other.type;
             _u = other._u;
-            value_len = other.value_len;
+            float_precision_len = other.float_precision_len;
             str_val = other.str_val;
             if (type == pb::BITMAP) {
                 _u.bitmap = new(std::nothrow) Roaring();
@@ -91,7 +92,7 @@ struct ExprValue {
         type = other.type;
         _u = other._u;
         str_val = other.str_val;
-        value_len = other.value_len;
+        float_precision_len = other.float_precision_len;
         if (type == pb::BITMAP) {
             other._u.bitmap = nullptr;
         }
@@ -109,7 +110,7 @@ struct ExprValue {
                 other._u.bitmap = nullptr;
             }
             str_val = other.str_val;
-            value_len = other.value_len;
+            float_precision_len = other.float_precision_len;
         }
         return *this;
     }
@@ -122,9 +123,7 @@ struct ExprValue {
     }
     explicit ExprValue(const pb::ExprValue& value) {
         type = value.type();
-        if (value.has_value_len()) {
-            value_len = value.value_len();
-        }
+        float_precision_len = -1;
         switch (type) {
             case pb::BOOL:
                 _u.bool_val = value.bool_val();
@@ -188,6 +187,7 @@ struct ExprValue {
 
     explicit ExprValue(pb::PrimitiveType primitive_type, const std::string& value_str) {
         type = pb::STRING;
+        float_precision_len = -1;
         str_val = value_str;
         if (primitive_type == pb::STRING 
             || primitive_type == pb::JSON
@@ -283,7 +283,6 @@ struct ExprValue {
     }
     void to_proto(pb::ExprValue* value) {
         value->set_type(type);
-        value->set_value_len(value_len);
         switch (type) {
             case pb::BOOL:
                 value->set_bool_val(_u.bool_val);
@@ -356,8 +355,16 @@ struct ExprValue {
             case pb::UINT64:
                 return _u.uint64_val;
             case pb::FLOAT:
+                if (float_precision_len > 0) {
+                    int32_t carry = ::pow(10, float_precision_len);
+                    return ::round(_u.float_val * carry) / carry;
+                }
                 return _u.float_val;
             case pb::DOUBLE:
+                if (float_precision_len > 0) {
+                    int32_t carry = ::pow(10, float_precision_len);
+                    return ::round(_u.double_val * carry) / carry;
+                }
                 return _u.double_val;
             case pb::STRING:
                 if (std::is_integral<T>::value) {
@@ -622,7 +629,7 @@ struct ExprValue {
             case pb::TDIGEST:
                 return str_val;
             case pb::DATETIME:
-                return datetime_to_str(_u.uint64_val, value_len);
+                return datetime_to_str(_u.uint64_val, float_precision_len);
             case pb::TIME:
                 return time_to_str(_u.int32_val);
             case pb::TIMESTAMP:
@@ -844,7 +851,7 @@ struct ExprValue {
         ret._u.bool_val = true;
         return ret;
     }
-    static ExprValue Now(int precision = 6) {
+    static ExprValue Now(int32_t precision = 0) {
         ExprValue tmp(pb::TIMESTAMP);
         if (precision > 0 and precision <= 6) {
             timeval tv;
@@ -852,11 +859,11 @@ struct ExprValue {
             tmp._u.uint32_val = tv.tv_sec;
             tmp.cast_to(pb::DATETIME);
             tmp._u.uint64_val |= tv.tv_usec;
-            tmp.set_value_len(precision);
+            tmp.set_precision_len(precision);
         } else {
             tmp._u.uint32_val = time(NULL);
             tmp.cast_to(pb::DATETIME);
-            tmp.set_value_len(0);
+            tmp.set_precision_len(0);
         }
         return tmp;
     }
@@ -872,7 +879,7 @@ struct ExprValue {
         ExprValue ret(pb::UINT64);
         return ret;
     }
-    static ExprValue UTC_TIMESTAMP(int len = 0) {
+    static ExprValue UTC_TIMESTAMP(int32_t precision = 0) {
         // static int UTC_OFFSET = 8 * 60 * 60;
         time_t current_time;
         struct tm timeinfo;
@@ -880,17 +887,17 @@ struct ExprValue {
         long offset = timeinfo.tm_gmtoff;
 
         ExprValue tmp(pb::TIMESTAMP);
-        if (len >=0 && len <= 6) {
+        if (precision >=0 && precision <= 6) {
             timeval tv;
             gettimeofday(&tv, NULL);
             tmp._u.uint32_val = tv.tv_sec - offset;
             tmp.cast_to(pb::DATETIME);
             tmp._u.uint64_val |= tv.tv_usec;
-            tmp.set_value_len(len);
+            tmp.set_precision_len(precision);
         } else {
             tmp._u.uint32_val = time(NULL) - offset;
             tmp.cast_to(pb::DATETIME);
-            tmp.set_value_len(0);
+            tmp.set_precision_len(0);
         }
         return tmp;
     }
@@ -922,19 +929,19 @@ struct ExprValue {
     };
 
     void dt_cast_len() {
-         if (value_len >= 0 and value_len <= 6) {
-             uint64_t p = std::pow(10, (6 - value_len));
+         if (float_precision_len >= 0 and float_precision_len <= 6) {
+             uint64_t carry = std::pow(10, (6 - float_precision_len));
              uint64_t oldmic = _u.uint64_val & 0xffffff;
-             uint64_t newmic = oldmic / p * p;
-             _u.uint64_val = _u.uint64_val & ~0xffffff | newmic;
+             uint64_t newmic = (oldmic / carry) * carry;
+             _u.uint64_val = (_u.uint64_val & ~0xffffff) | newmic;
          }
     }
 
-    void set_value_len(int len) {
-        if (value_len == len) {
+    void set_precision_len(int32_t precision) {
+        if (float_precision_len == precision) {
             return;
         }
-        value_len = len;
+        float_precision_len = precision;
         if (type == pb::DATETIME) {
             dt_cast_len();
         }

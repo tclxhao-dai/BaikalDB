@@ -394,6 +394,65 @@ inline std::string to_mysql_type_string(pb::PrimitiveType type) {
     }
 }
 
+inline std::string to_mysql_type_full_string(pb::PrimitiveType type,
+        int32_t float_total_len = -1, int32_t float_precision_len = -1) {
+    switch (type) {
+        case pb::BOOL:
+            return "tinyint(3)";
+        case pb::INT8:
+            return "tinyint(3)";
+        case pb::UINT8:
+            return "tinyint(3) unsigned";
+        case pb::INT16:
+            return "smallint(5)";
+        case pb::UINT16:
+            return "smallint(5) unsigned";
+        case pb::INT32:
+            return "int(11)";
+        case pb::UINT32:
+            return "int(11) unsigned";
+        case pb::INT64:
+            return "bigint(21)";
+        case pb::UINT64:
+            return "bigint(21) unsigned";
+        case pb::FLOAT:
+            if (float_total_len != -1 && float_precision_len != -1) {
+                return "float(" + std::to_string(float_total_len) + "," + std::to_string(float_precision_len) + ")";
+            }
+            return "float";
+        case pb::DOUBLE:
+            if (float_total_len != -1 && float_precision_len != -1) {
+                return "double(" + std::to_string(float_total_len) + "," + std::to_string(float_precision_len) + ")";
+            }
+            return "double";
+        case pb::STRING:
+            return "varchar(1024)";
+        case pb::DATETIME:
+            if (float_precision_len == -1) {
+               return "datetime(6)";
+            } else if (float_precision_len > 0 && float_precision_len <= 6) {
+               return "datetime(" + std::to_string(float_precision_len) + ")";
+            }
+            return "datetime";
+        case pb::DATE:
+            return "date";
+        case pb::TIME:
+            return "time";
+        case pb::TIMESTAMP:
+            return "timestamp";
+        case pb::HLL:
+            return "HLL";
+        case pb::BITMAP:
+            return "BITMAP";
+        case pb::TDIGEST:
+            return "TDIGEST";
+        case pb::JSON:
+            return "json";
+        default:
+            return "";
+    }
+}
+
 inline bool is_signed(pb::PrimitiveType type) {
     switch (type) {
         case pb::INT8:

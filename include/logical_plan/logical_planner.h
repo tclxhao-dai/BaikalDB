@@ -251,8 +251,9 @@ protected:
 
     // get or create a new SlotDescriptor with the given field name
     // used for create slot_ref
-    pb::SlotDescriptor& get_scan_ref_slot(const std::string& alias_name, const FieldInfo& field);
-    pb::SlotDescriptor& get_values_ref_slot(const FieldInfo& field);
+    pb::SlotDescriptor& get_scan_ref_slot(const std::string& alias_name,
+            int64_t table, int32_t field, pb::PrimitiveType type);
+    pb::SlotDescriptor& get_values_ref_slot(int64_t table, int32_t field, pb::PrimitiveType type);
 
     // create common plan nodes 
     int create_packet_node(pb::OpType op_type);

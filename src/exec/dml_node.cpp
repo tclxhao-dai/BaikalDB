@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "runtime_state.h"
 #include "dml_node.h"
+#include "runtime_state.h"
 #include "filter_node.h"
 
 namespace baikaldb {
@@ -147,6 +147,11 @@ int DMLNode::init_schema_info(RuntimeState* state) {
         std::set<int32_t> affect_field_ids;
         for (auto& slot : _update_slots) {
             affect_field_ids.insert(slot.field_id());
+        }
+        for (auto& field_info : _table_info->fields) {
+            if (affect_field_ids.count(field_info.id) == 1) {
+                _update_fields[field_info.id] = &field_info;
+            }
         }
         _update_affect_primary = false;
 
@@ -678,9 +683,15 @@ int DMLNode::update_row(RuntimeState* state, SmartRecord record, MemRow* row) {
     for (size_t i = 0; i < _update_exprs.size(); i++) {
         auto& slot = _update_slots[i];
         auto expr = _update_exprs[i];
-        ExprValue t = expr->get_value(row).cast_to(slot.slot_type());
-        t.set_value_len(slot.value_len());
-        record->set_value(record->get_field_by_tag(slot.field_id()), t);
+        auto field = _update_fields[slot.field_id()];
+        if (field->type == pb::FLOAT || field->type == pb::DOUBLE || field->type == pb::DATETIME) {
+            auto& expr_value = expr->get_value(row).cast_to(slot.slot_type());
+            expr_value.set_precision_len(field->float_precision_len);
+            record->set_value(record->get_field_by_tag(slot.field_id()), expr_value);
+        } else {
+            record->set_value(record->get_field_by_tag(slot.field_id()),
+                expr->get_value(row).cast_to(slot.slot_type()));
+        }
         auto last_insert_id_expr = expr->get_last_insert_id();
         if (last_insert_id_expr != nullptr) {
             state->last_insert_id = last_insert_id_expr->get_value(row).get_numberic<int64_t>();

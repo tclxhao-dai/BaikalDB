@@ -110,6 +110,15 @@ int InsertManagerNode::init_insert_info(InsertNode* insert_node, bool is_local) 
     _update_slots.swap(insert_node->update_slots());
     _update_exprs.swap(insert_node->update_exprs());
     _insert_values.swap(insert_node->insert_values());
+    std::set<int32_t> affect_field_ids;
+    for (auto& slot : _update_slots) {
+        affect_field_ids.insert(slot.field_id());
+    }
+    for (auto& field_info : _table_info->fields) {
+        if (affect_field_ids.count(field_info.id) == 1) {
+            _update_fields[field_info.id] = &field_info;
+        }
+    }
     return 0;
 }
 
@@ -193,7 +202,7 @@ int InsertManagerNode::subquery_open(RuntimeState* state) {
                 }
                 // 20190101101112 这种转换现在只支持string类型
                 pb::PrimitiveType field_type = table_field_map[_selected_field_ids[i]]->type;
-                result.set_value_len(table_field_map[_selected_field_ids[i]]->value_len);
+                result.set_precision_len(table_field_map[_selected_field_ids[i]]->float_precision_len);
                 if (is_datetime_specic(field_type) && result.is_numberic()) {
                     result.cast_to(pb::STRING).cast_to(field_type);
                 } else {
@@ -651,8 +660,15 @@ void InsertManagerNode::update_record(const SmartRecord& record, const SmartReco
     for (size_t i = 0; i < _update_exprs.size(); i++) {
         auto& slot = _update_slots[i];
         auto expr = _update_exprs[i];
-        record->set_value(record->get_field_by_tag(slot.field_id()),
-            expr->get_value(row).cast_to(slot.slot_type()));
+        auto field = _update_fields[slot.field_id()];
+        if (field->type == pb::FLOAT || field->type == pb::DOUBLE || field->type == pb::DATETIME) {
+            auto& expr_value = expr->get_value(row).cast_to(slot.slot_type());
+            expr_value.set_precision_len(field->float_precision_len);
+            record->set_value(record->get_field_by_tag(slot.field_id()), expr_value);
+        } else {
+            record->set_value(record->get_field_by_tag(slot.field_id()),
+                expr->get_value(row).cast_to(slot.slot_type()));
+        }
         if (state != nullptr) {
             auto last_value_expr = expr->get_last_value();
             if (last_value_expr != nullptr) {

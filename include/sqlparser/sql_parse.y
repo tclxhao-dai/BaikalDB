@@ -4229,9 +4229,9 @@ DateAndTimeType:
         FieldType* field_type = new_node(FieldType);
         field_type->type = MYSQL_TYPE_DATETIME;
         if ($2 >= 1 && $2 <= 6) {
-            field_type->value_len = $2;
+            field_type->float_len = $2;
         } else {
-            field_type->value_len = 0;
+            field_type->float_len = 0;
         }
         $$ = field_type;
     }

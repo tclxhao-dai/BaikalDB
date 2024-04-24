@@ -147,57 +147,9 @@ struct FieldInfo {
     bool                deleted = false;
     bool                noskip = false;
     uint32_t            flag   = 0;
-    int32_t             value_len = -1;
-    inline std::string to_mysql_type_full_string() {
-        switch (type) {
-            case pb::BOOL:
-                return "tinyint(3)";
-            case pb::INT8:
-                return "tinyint(3)";
-            case pb::UINT8:
-                return "tinyint(3) unsigned";
-            case pb::INT16:
-                return "smallint(5)";
-            case pb::UINT16:
-                return "smallint(5) unsigned";
-            case pb::INT32:
-                return "int(11)";
-            case pb::UINT32:
-                return "int(11) unsigned";
-            case pb::INT64:
-                return "bigint(21)";
-            case pb::UINT64:
-                return "bigint(21) unsigned";
-            case pb::FLOAT:
-                return "float";
-            case pb::DOUBLE:
-                return "double";
-            case pb::STRING:
-                return "varchar(1024)";
-            case pb::DATETIME:
-                if (value_len == 0) {
-                   return "datetime";
-                } else {
-                    return "datetime(" + std::to_string(value_len) + ")";
-                }
-            case pb::DATE:
-                return "date";
-            case pb::TIME:
-                return "time";
-            case pb::TIMESTAMP:
-                return "timestamp";
-            case pb::HLL:
-                return "HLL";
-            case pb::BITMAP:
-                return "BITMAP";
-            case pb::TDIGEST:
-                return "TDIGEST";
-            case pb::JSON:
-                return "json";
-            default:
-                return "";
-        }
-    }
+    bool                is_unique_indicator = false; // 指标唯一列
+    int32_t             float_total_len = -1;
+    int32_t             float_precision_len = -1;
 };
 
 struct DistInfo {

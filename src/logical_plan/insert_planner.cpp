@@ -163,7 +163,8 @@ int InsertPlanner::parse_kv_list() {
             DB_WARNING("invalid field name in: %s", full_name.c_str());
             return -1;
         }
-        auto slot = get_scan_ref_slot(alias_name, *field_info);
+        auto slot = get_scan_ref_slot(alias_name,
+                field_info->table_id, field_info->id, field_info->type);
         _update_slots.emplace_back(slot);
         update_field_ids.insert(field_info->id);
 
@@ -179,7 +180,7 @@ int InsertPlanner::parse_kv_list() {
                 node->set_num_children(0);
                 node->set_node_type(pb::STRING_LITERAL);
                 node->set_col_type(pb::STRING);
-                node->mutable_derive_node()->set_string_val(ExprValue::Now(field_info->value_len).get_string());
+                node->mutable_derive_node()->set_string_val(ExprValue::Now(field_info->float_precision_len).get_string());
             }
         }
         _update_values.emplace_back(value_expr);
@@ -194,8 +195,8 @@ int InsertPlanner::parse_kv_list() {
             node->set_num_children(0);
             node->set_node_type(pb::STRING_LITERAL);
             node->set_col_type(pb::STRING);
-            node->mutable_derive_node()->set_string_val(ExprValue::Now(field.value_len).get_string());
-            auto slot = get_scan_ref_slot(tbl_ptr->name, field);
+            node->mutable_derive_node()->set_string_val(ExprValue::Now(field.float_precision_len).get_string());
+            auto slot = get_scan_ref_slot(tbl_ptr->name, field.table_id, field.id, field.type);
             _update_slots.emplace_back(slot);
             _update_values.emplace_back(value_expr);
         }
@@ -326,7 +327,7 @@ int InsertPlanner::fill_record_field(const parser::ExprNode* parser_expr, SmartR
     } else {
         value.cast_to(field.type);
     }
-    value.set_value_len(field.value_len);
+    value.set_precision_len(field.float_precision_len);
     expr->close();
     delete expr;
     // fill default
