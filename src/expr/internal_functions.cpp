@@ -1061,7 +1061,7 @@ ExprValue setrange(const std::vector<ExprValue>& input) {
     std::string str = input[0].get_string();
     int64_t offset = input[1].get_numberic<int64_t>();
     std::string value = input[2].get_string();
-    if (offset < 0 || offset > UINT16_MAX) {
+    if (offset < 0 || offset > INT32_MAX) {
         return ExprValue::Null();
     }
     if (offset > str.length()) {

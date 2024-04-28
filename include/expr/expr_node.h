@@ -115,18 +115,25 @@ public:
         }
         return nullptr;
     }
+    static int string2ll(const char *s, size_t slen, long long *value);
+    static int string2d(const char *s, size_t slen, double *dp);
+
     virtual bool is_valid_int_cast(MemRow* row) {
         if (_node_type == pb::SLOT_REF ||
             _node_type == pb::STRING_LITERAL) {
             auto v = get_value(row);
             if (v.type == pb::STRING) {
-                char* end = nullptr;
-                strtoll(v.str_val.c_str(), &end, 10);
-                if (strlen(end) > 0) {
-                    return false;
-                }
-                if (errno == ERANGE) {
-                    errno = 0;
+//                char* end = nullptr;
+//                strtoll(v.str_val.c_str(), &end, 10);
+//                if (strlen(end) > 0) {
+//                    return false;
+//                }
+//                if (errno == ERANGE) {
+//                    errno = 0;
+//                    return false;
+//                }
+                long long value;
+                if (string2ll(v.str_val.c_str(), v.str_val.size(), &value) != 1) {
                     return false;
                 }
             }
@@ -145,13 +152,17 @@ public:
             _node_type == pb::STRING_LITERAL) {
             auto v = get_value(row);
             if (v.type == pb::STRING) {
-                char* end = nullptr;
-                strtod(v.str_val.c_str(), &end);
-                if (strlen(end) > 0) {
-                    return false;
-                }
-                if (errno == ERANGE) {
-                    errno = 0;
+//                char* end = nullptr;
+//                strtod(v.str_val.c_str(), &end);
+//                if (strlen(end) > 0) {
+//                    return false;
+//                }
+//                if (errno == ERANGE) {
+//                    errno = 0;
+//                    return false;
+//                }
+                double d;
+                if (string2d(v.str_val.c_str(), v.str_val.size(), &d) != 1) {
                     return false;
                 }
             }
