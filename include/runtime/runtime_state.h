@@ -397,6 +397,9 @@ public:
     int64_t get_cost_time() {
         return time_cost.get_time();
     }
+    void reset_cost_time() {
+        time_cost.reset();
+    }
     bool is_timeout() {
         return _sql_exec_timeout > 0 && time_cost.get_time()  > _sql_exec_timeout * 1000L;
     }
