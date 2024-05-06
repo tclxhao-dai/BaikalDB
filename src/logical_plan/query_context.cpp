@@ -29,6 +29,13 @@ int QueryContext::create_plan_tree() {
     return ExecNode::create_tree(plan, &root);
 }
 
+int QueryContext::destroy_plan_tree() {
+    need_destroy_tree = false;
+    ExecNode::destroy_tree(root);
+    root = nullptr;
+    return 0;
+}
+
 void QueryContext::update_ctx_stat_info(RuntimeState* state, int64_t query_total_time) {
     stat_info.num_returned_rows += state->num_returned_rows();
     stat_info.num_affected_rows += state->num_affected_rows();

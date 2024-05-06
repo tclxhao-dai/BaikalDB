@@ -281,6 +281,8 @@ int PreparePlanner::stmt_execute(const std::string& stmt_name, std::vector<pb::E
         _ctx->root->find_place_holder(_ctx->placeholders);
 
         for (auto sub_query_ctx : prepare_ctx->sub_query_plans) {
+            // stmt_prepare的plan()函数里已经生成过一次了，此处需要先释放，再生成
+            sub_query_ctx->destroy_plan_tree();
             int ret = sub_query_ctx->create_plan_tree();
             if (ret < 0) {
                 DB_WARNING("Failed to pb_plan to execnode");
