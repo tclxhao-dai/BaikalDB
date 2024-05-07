@@ -2435,6 +2435,11 @@ int SchemaFactory::get_region_by_key(int64_t main_table_id,
             right_open = false;
         }
 
+        if (template_primary.is_eq()) {
+            end = start;
+            right_open = left_open;
+        }
+
         MutTableKey start_sentinel(start.data());
         if (!start.get_full() && left_open) {
             start_sentinel.append_u16(0xFFFF);
