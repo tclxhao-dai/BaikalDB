@@ -3205,17 +3205,25 @@ ExprValue bset(const std::vector<ExprValue>& input) {
     }
     value.cast_to(pb::STRING);
     ExprValue offset = input[1];
-    offset.cast_to(pb::UINT64);
+    if (!offset.is_int()) {
+        return value;
+    }
+    offset.cast_to(pb::INT64);
+    // The offset argument is required to be greater than or equal to 0,
+    // and smaller than 2^32 (this limits bitmaps to 512MB).
+    if (offset._u.int64_val < 0 || offset._u.int64_val > UINT32_MAX) {
+        return value;
+    }
     ExprValue bit = input[2];
     bit.cast_to(pb::BOOL);
-    int n = offset._u.uint64_val/NBBY + 1 - value.str_val.length();
+    int n = offset._u.int64_val/NBBY + 1 - value.str_val.length();
     if (n > 0) {
         value.str_val.append(n ,'\0');
     }
     if (bit._u.bool_val) {
-        SETBIT(value.str_val, offset._u.uint64_val);
+        SETBIT(value.str_val, offset._u.int64_val);
     } else {
-        CLRBIT(value.str_val, offset._u.uint64_val);
+        CLRBIT(value.str_val, offset._u.int64_val);
     }
     return value;
 }
@@ -3231,12 +3239,20 @@ ExprValue bget(const std::vector<ExprValue>& input) {
     }
     value.cast_to(pb::STRING);
     ExprValue offset = input[1];
-    offset.cast_to(pb::UINT64);
-    int n = offset._u.uint64_val/NBBY + 1 - value.str_val.length();
-    if (n > 0) {
-        ret._u.uint64_val = 0;
+    if (!offset.is_int()) {
+        return ret;
     }
-    ret._u.uint64_val = ISSET(value.str_val, offset._u.uint64_val) ? 1 : 0;
+    offset.cast_to(pb::INT64);
+    // The offset argument is required to be greater than or equal to 0,
+    // and smaller than 2^32 (this limits bitmaps to 512MB).
+    if (offset._u.int64_val < 0 || offset._u.int64_val > UINT32_MAX) {
+        return ret;
+    }
+    int n = offset._u.int64_val/NBBY + 1 - value.str_val.length();
+    if (n > 0) {
+        return ret;
+    }
+    ret._u.uint64_val = ISSET(value.str_val, offset._u.int64_val) ? 1 : 0;
     return ret;
 }
 ExprValue band(const std::vector<ExprValue>& input) {
@@ -3379,7 +3395,8 @@ ExprValue bcount(const std::vector<ExprValue>& input) {
     std::string& d = value.str_val;
 
     int64_t off = 0;
-    int64_t end = d.size() * NBBY;int STEP = NBBY;
+    int64_t end = d.size() * NBBY;
+    int STEP = NBBY;
     if (input.size() == 4 && to_lower(input[3].get_string()) == "bit") {
         STEP = 1;
     }
