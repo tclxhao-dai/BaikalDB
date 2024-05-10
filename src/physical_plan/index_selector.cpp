@@ -103,7 +103,7 @@ int IndexSelector::analyze(QueryContext* ctx) {
             ctx->field_range_type = field_range_type;
         }
 
-        index_merge_selector(ctx->tuple_descs(),
+        int32_t r = index_merge_selector(ctx->tuple_descs(),
                              static_cast<ScanNode*>(scan_node_ptr),
                              filter_node,
                              (join_node != NULL || agg_node != NULL) ? NULL: sort_node,
@@ -111,6 +111,9 @@ int IndexSelector::analyze(QueryContext* ctx) {
                              &index_has_null,
                              field_range_type,
                              ctx->stat_info.sample_sql.str());
+        if (r > 0) {
+            scan_node_ptr->set_has_optimized(true);
+        }
     }
     return 0;
 }
@@ -848,6 +851,7 @@ int64_t IndexSelector::index_merge_selector(const std::vector<pb::TupleDescripto
         scan_node->clear_merge_index_info();
     } else {
         scan_node->scan_indexs().clear(); // 避免scan_plan_router
+        return 1;
     }
     return 0;
 }

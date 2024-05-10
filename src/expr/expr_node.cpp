@@ -341,22 +341,24 @@ void ExprNode::or_node_optimize(ExprNode** root) {
     return;
 }
 
-void ExprNode::like_node_optimize(ExprNode** root, std::vector<ExprNode*>& new_exprs) {
+
+// 返回true代表进行了转换，需要标记
+bool ExprNode::like_node_optimize(ExprNode** root, std::vector<ExprNode*>& new_exprs) {
     if (*root == nullptr) {
-        return;
+        return false;
     }
     if ((*root)->node_type() != pb::LIKE_PREDICATE) {
-        return;
+        return false;
     }
     auto expr = *root;
     SlotRef* slot = (SlotRef*)expr->children(0);
     if (slot->col_type() != pb::STRING) {
-        return;
+        return false;
     }
     if (expr->children(1)->is_constant()) {
         expr->children(1)->open();
     } else {
-        return;
+        return false;
     }
     bool is_eq = false;
     bool is_prefix = false;
@@ -364,7 +366,7 @@ void ExprNode::like_node_optimize(ExprNode** root, std::vector<ExprNode*>& new_e
     static_cast<LikePredicate*>(expr)->hit_index(&is_eq, &is_prefix, &(prefix_value.str_val));
     std::string old_val = expr->children(1)->get_value(nullptr).get_string();
     if (!is_prefix || old_val.length() > prefix_value.str_val.length() + 1) {
-        return;
+        return false;
     }
     if (is_eq) {
         ScalarFnCall * eqexpr = new ScalarFnCall();
@@ -382,7 +384,7 @@ void ExprNode::like_node_optimize(ExprNode** root, std::vector<ExprNode*>& new_e
         eqexpr->add_child(eqval);
         *root = eqexpr;
         ExprNode::destroy_tree(expr);
-        return ;
+        return true;
     } else if (is_prefix) {
         ScalarFnCall *geexpr = new ScalarFnCall();
         SlotRef *slotge = slot->clone();
@@ -425,7 +427,8 @@ void ExprNode::like_node_optimize(ExprNode** root, std::vector<ExprNode*>& new_e
         ltexpr->add_child(ltval);
         new_exprs.push_back(ltexpr);
         ExprNode::destroy_tree(expr);
-    }      
+        return true;
+    }
 }
 
 int ExprNode::create_expr_node(const pb::ExprNode& node, ExprNode** expr_node) {

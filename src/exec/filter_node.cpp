@@ -352,7 +352,10 @@ int FilterNode::expr_optimize(QueryContext* ctx) {
             return ret;
         }
         ExprNode::or_node_optimize(&expr);
-        ExprNode::like_node_optimize(&expr, like2range);
+        bool t = ExprNode::like_node_optimize(&expr, like2range);
+        if (t) {
+            _has_optimized = true;
+        }
     }
     for (auto expr : like2range) {
         _conjuncts.push_back(expr);
@@ -456,7 +459,7 @@ int FilterNode::expr_optimize(QueryContext* ctx) {
         bool all_const = true;
         for (uint32_t i = 1; i < expr->children_size(); i++) { 
             // place holder被替换会导致下一次exec参数对不上
-            if (!expr->children(i)->is_constant() || expr->children(i)->has_place_holder()) {
+            if (!expr->children(i)->is_constant()) {
                 all_const = false;
                 break;
             }
@@ -505,6 +508,7 @@ int FilterNode::expr_optimize(QueryContext* ctx) {
         if (cut_preds.count(expr) == 1) {
             ExprNode::destroy_tree(expr);
             iter = _conjuncts.erase(iter);
+            _has_optimized = true;
             continue;
         }
         if (expr->is_constant()) {
