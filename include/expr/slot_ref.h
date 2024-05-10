@@ -33,6 +33,9 @@ public:
             return ExprValue::Null();
         }
         ExprValue v = row->get_value(_tuple_id, _slot_id).cast_to(_col_type);
+        if (_float_precision_len != -1) {
+            v.set_precision_len(_float_precision_len);
+        }
         return v;
     }
     virtual ExprValue get_value(const ExprValue& value) {
