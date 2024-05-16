@@ -855,10 +855,11 @@ bool ShowHelper::_show_create_table(const SmartSocket& client, const std::vector
             }
             oss << " " << index_map[index_info.type] << " ";
             if (index_info.type != pb::I_PRIMARY) {
-                std::vector<std::string> split_vec;
-                boost::split(split_vec, index_info.name,
-                             boost::is_any_of("."), boost::token_compress_on);
-                oss << "`" << split_vec[split_vec.size() - 1] << "` ";
+                // std::vector<std::string> split_vec;
+                // boost::split(split_vec, index_info.name,
+                //              boost::is_any_of("."), boost::token_compress_on);
+                // oss << "`" << split_vec[split_vec.size() - 1] << "` ";
+                oss << "`" << index_info.short_name << "`";
             }
             oss << "(";
             uint32_t field_idx = 0;
@@ -3836,10 +3837,11 @@ bool ShowHelper::_show_index(const SmartSocket& client, const std::vector<std::s
         bool non_unique = index_info.type != pb::I_PRIMARY && index_info.type != pb::I_UNIQ;
         std::string key_name = "PRIMARY";
         if (index_info.type != pb::I_PRIMARY) {
-            std::vector<std::string> split_vec;
-            boost::split(split_vec, index_info.name,
-                         boost::is_any_of("."), boost::token_compress_on);
-            key_name = split_vec[split_vec.size() - 1];
+            //std::vector<std::string> split_vec;
+            //boost::split(split_vec, index_info.name,
+            //             boost::is_any_of("."), boost::token_compress_on);
+            //key_name = split_vec[split_vec.size() - 1];
+            key_name = index_info.short_name;
         }
         for (size_t i = 0; i < index_info.fields.size(); ++i) {
             rows.push_back({table, std::to_string(non_unique), key_name, std::to_string(i),
