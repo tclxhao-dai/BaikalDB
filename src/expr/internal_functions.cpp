@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "internal_functions.h"
+#include "redis.h"
 #include <openssl/md5.h>
 #include <rapidjson/pointer.h>
 #include <rapidjson/writer.h>
@@ -2661,6 +2662,85 @@ ExprValue last_insert_id(const std::vector<ExprValue>& input) {
     ExprValue tmp = input[0];
     return tmp.cast_to(pb::INT64);
 }
+
+#define MAX_LONG_DOUBLE_CHARS 5*1024
+
+int string2ld(const char *s, size_t slen, long double *dp) {
+    char buf[MAX_LONG_DOUBLE_CHARS];
+    long double value;
+    char *eptr;
+
+    if (slen == 0 || slen >= sizeof(buf)) return 0;
+    memcpy(buf,s,slen);
+    buf[slen] = '\0';
+
+    errno = 0;
+    value = strtold(buf, &eptr);
+    if (isspace(buf[0]) || eptr[0] != '\0' ||
+        (size_t)(eptr-buf) != slen ||
+        (errno == ERANGE &&
+            (value == HUGE_VAL || value == -HUGE_VAL || value == 0)) ||
+        errno == EINVAL ||
+        isnan(value))
+        return 0;
+
+    if (dp) *dp = value;
+    return 1;
+}
+
+ExprValue incr_int(const std::vector<ExprValue>& input) {
+    if (input.size() != 2) {
+        return ExprValue::Null();
+    }
+    ExprValue tmp = input[0];
+    tmp.cast_to(pb::STRING);
+    ExprValue inc = input[1];
+    inc.cast_to(pb::STRING);
+    ExprValue res(pb::STRING);
+    long long value, inc_val;
+    if (!string2ll(tmp.str_val.c_str(), tmp.str_val.size(), &value)) {
+        return ExprValue::Null();
+    }
+    if (!string2ll(inc.str_val.c_str(), inc.str_val.size(), &inc_val)) {
+        return ExprValue::Null();
+    }
+    if (value < 0 && inc_val < 0 && inc_val < (LLONG_MIN - value)) {
+        return ExprValue::Null();
+    }
+    if (value > 0 && inc_val > 0 && inc_val > (LLONG_MAX - value)) {
+        return ExprValue::Null();
+    }
+    value += inc_val;
+    std::ostringstream stream;
+    stream << value;
+    res.str_val = stream.str();
+    return res;
+}
+
+ExprValue incr_float(const std::vector<ExprValue>& input) {
+    if (input.size() != 2) {
+        return ExprValue::Null();
+    }
+    ExprValue tmp = input[0];
+    tmp.cast_to(pb::STRING);
+    ExprValue inc = input[1];
+    inc.cast_to(pb::STRING);
+    long double value, inc_val; 
+    ExprValue res(pb::STRING);
+    if (!string2ld(tmp.str_val.c_str(), tmp.str_val.size(), &value)) {
+        return ExprValue::Null();
+    }
+    if (!string2ld(inc.str_val.c_str(), inc.str_val.size(), &inc_val)) {
+        return ExprValue::Null();
+    }
+    value += inc_val;
+    char buf[MAX_LONG_DOUBLE_CHARS] = {0};
+    int len = ld2string(buf,sizeof(buf),value,LD_STR_HUMAN);
+    buf[len] = '\0';
+    res.str_val = buf;
+    return res;
+}
+
 ExprValue last_value(const std::vector<ExprValue>& input) {
     if (input.size() == 0) {
         return ExprValue::Null();
@@ -3188,7 +3268,9 @@ ExprValue soundex(const std::vector<ExprValue>& input) {
     res.str_val = code;
     return res;
 }
+#ifndef NBBY
 #define NBBY            8
+#endif
 #define SETBIT(a,i)     ((a)[(i)/NBBY] |= 1<<(NBBY-1-(i)%NBBY))
 #define CLRBIT(a,i)     ((a)[(i)/NBBY] &= ~(1<<(NBBY-1-(i)%NBBY)))
 #define ISSET(a,i)      ((a)[(i)/NBBY] & (1<<(NBBY-1-(i)%NBBY)))
@@ -3335,7 +3417,7 @@ ExprValue bnot(const std::vector<ExprValue>& input) {
     return ret;
 }
 ExprValue bpos(const std::vector<ExprValue>& input) {
-    if (input.size() != 2 && input.size() != 4 && input.size() != 5) {
+    if (input.size() < 2 || input.size() > 5) {
         return ExprValue::Null();
     }
     ExprValue ret(pb::INT64);
@@ -3355,11 +3437,16 @@ ExprValue bpos(const std::vector<ExprValue>& input) {
     if (input.size() == 5 && to_lower(input[4].get_string()) == "bit") {
         STEP = 1;
     }
-    if (input.size() >= 4) {
+    if (input.size() >= 3) {
         ExprValue s = input[2];
         off = s.cast_to(pb::INT64)._u.int64_val * STEP;
+    }
+    if (input.size() >= 4) {
         ExprValue e = input[3];
-        end = std::min(end, (e.cast_to(pb::INT64)._u.int64_val + 1) * STEP);
+        int e1 = (e.cast_to(pb::INT64)._u.int64_val + 1) * STEP;
+        if (e1 > 0 && e1 < end) {
+            end = e1;
+        }
     }
     if (bit._u.bool_val) {
         for (; off < end; off++) {
