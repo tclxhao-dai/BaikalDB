@@ -3432,7 +3432,7 @@ ExprValue bpos(const std::vector<ExprValue>& input) {
     std::string& d = value.str_val;
 
     int64_t off = 0;
-    int64_t end = d.size() * NBBY;
+    int64_t end = d.size() * NBBY - 1;
     int STEP = NBBY;
     if (input.size() == 5 && to_lower(input[4].get_string()) == "bit") {
         STEP = 1;
@@ -3440,16 +3440,27 @@ ExprValue bpos(const std::vector<ExprValue>& input) {
     if (input.size() >= 3) {
         ExprValue s = input[2];
         off = s.cast_to(pb::INT64)._u.int64_val * STEP;
+        if (off >= d.size() * NBBY / STEP) {
+            ret._u.int64_val = -1;
+            return ret;
+        }
+        if (off < 0) {
+            off = 0;
+        }
+        off *= STEP;
     }
     if (input.size() >= 4) {
         ExprValue e = input[3];
-        int e1 = (e.cast_to(pb::INT64)._u.int64_val + 1) * STEP;
-        if (e1 > 0 && e1 < end) {
-            end = e1;
+        int64_t t = e.cast_to(pb::INT64)._u.int64_val;
+        if (t < 0 || t >= d.size() * (NBBY / STEP)) {
+            t = d.size() * NBBY - 1;
+        } else {
+            t = (t + 1) * STEP - 1;
         }
+        end = std::min(end, t); 
     }
     if (bit._u.bool_val) {
-        for (; off < end; off++) {
+        for (; off <= end; off++) {
             if (ISSET(d, off)) {
                 ret._u.int64_val = off;
                 return ret;
@@ -3457,13 +3468,13 @@ ExprValue bpos(const std::vector<ExprValue>& input) {
         }
         ret._u.int64_val = -1;
     } else {
-        for (; off < end; off++) {
+        for (; off <= end; off++) {
             if (ISCLR(d, off)) {
                 ret._u.int64_val = off;
                 return ret;
             }
         }
-        ret._u.int64_val = (input.size() == 4) ? -1 : end;
+        ret._u.int64_val = (input.size() > 3) ? -1 : end + 1;
     }
     return ret;
 }
@@ -3482,18 +3493,31 @@ ExprValue bcount(const std::vector<ExprValue>& input) {
     std::string& d = value.str_val;
 
     int64_t off = 0;
-    int64_t end = d.size() * NBBY;
+    int64_t end = d.size() * NBBY - 1;
     int STEP = NBBY;
     if (input.size() == 4 && to_lower(input[3].get_string()) == "bit") {
         STEP = 1;
     }
     if (input.size() >= 3) {
         ExprValue s = input[1];
-        off = s.cast_to(pb::INT64)._u.int64_val * STEP;
+        off = s.cast_to(pb::INT64)._u.int64_val;
+        if (off >= d.size() * NBBY / STEP) {
+            return ret;
+        }
+        off *= STEP;
+        if (off < 0) {
+            off = 0;
+        }
         ExprValue e = input[2];
-        end = std::min(end, (e.cast_to(pb::INT64)._u.int64_val + 1) * STEP);
+        int64_t t = e.cast_to(pb::INT64)._u.int64_val;
+        if (t < 0 || t >= d.size() * (NBBY / STEP)) {
+            t = d.size() * NBBY - 1;
+        } else {
+            t = (t + 1) * STEP - 1;
+        }
+        end = std::min(end, t); 
     }
-    for (; off < end; off++) {
+    for (; off <= end; off++) {
         if (ISSET(d, off)) {
             ret._u.int64_val++;
         }
