@@ -3421,6 +3421,7 @@ ExprValue bpos(const std::vector<ExprValue>& input) {
         return ExprValue::Null();
     }
     ExprValue ret(pb::INT64);
+    ret._u.int64_val = -1;
     ExprValue value = input[0];
     if (value.is_null()) {
         value.str_val.clear();
@@ -3439,7 +3440,7 @@ ExprValue bpos(const std::vector<ExprValue>& input) {
     }
     if (input.size() >= 3) {
         ExprValue s = input[2];
-        off = s.cast_to(pb::INT64)._u.int64_val * STEP;
+        off = s.cast_to(pb::INT64)._u.int64_val;
         if (off >= d.size() * NBBY / STEP) {
             ret._u.int64_val = -1;
             return ret;
@@ -3474,7 +3475,7 @@ ExprValue bpos(const std::vector<ExprValue>& input) {
                 return ret;
             }
         }
-        ret._u.int64_val = (input.size() > 3) ? -1 : end + 1;
+        ret._u.int64_val = (input.size() > 3 || d.size() == 0) ? -1 : end + 1;
     }
     return ret;
 }
