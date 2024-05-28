@@ -21,3 +21,7 @@ int string2ll(const char *s, size_t slen, long long *value);
 int string2d(const char *s, size_t slen, double *dp);
 int ll2string(char *dst, size_t dstlen, long long svalue);
 uint32_t digits10(uint64_t v) ;
+int stringmatchlen(const char *pattern, int patternLen,
+        const char *string, int stringLen, int nocase) ;
+int stringmatchlen_impl(const char *pattern, int patternLen,
+        const char *string, int stringLen, int nocase, int *skipLongerMatches);

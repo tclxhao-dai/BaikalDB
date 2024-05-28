@@ -203,6 +203,7 @@ ExprValue last_insert_id(const std::vector<ExprValue>& input);
 ExprValue last_value(const std::vector<ExprValue>& input);
 ExprValue incr_float(const std::vector<ExprValue>& input);
 ExprValue incr_int(const std::vector<ExprValue>& input);
+ExprValue glob_match(const std::vector<ExprValue>& input);
 ExprValue find_in_set(const std::vector<ExprValue>& input);
 //transfer (latitude A, longitude A), (latitude B, longitude B) to distance of A to B (m)
 ExprValue point_distance(const std::vector<ExprValue>& input);

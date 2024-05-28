@@ -2741,6 +2741,23 @@ ExprValue incr_float(const std::vector<ExprValue>& input) {
     return res;
 }
 
+ExprValue glob_match(const std::vector<ExprValue>& input) {
+    if (input.size() != 2) {
+        return ExprValue::False();
+    }
+    ExprValue v = input[0];
+    v.cast_to(pb::STRING);
+    ExprValue pat = input[1];
+    pat.cast_to(pb::STRING);
+    if (pat.str_val.size() == 1 && pat.str_val[0] == '*') {
+        return ExprValue::True();
+    } 
+    if (stringmatchlen(pat.str_val.c_str(), pat.str_val.size(), v.str_val.c_str(), v.str_val.size(), 0)) {
+        return ExprValue::True();
+    }
+    return ExprValue::False();
+}
+
 ExprValue last_value(const std::vector<ExprValue>& input) {
     if (input.size() == 0) {
         return ExprValue::Null();

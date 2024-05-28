@@ -298,6 +298,7 @@ void FunctionManager::register_operators() {
     register_object_ret("last_value", last_value, pb::STRING);
     register_object_ret("incr_float", incr_float, pb::STRING);
     register_object_ret("incr_int", incr_int, pb::STRING);
+    register_object_ret("glob_match", glob_match, pb::BOOL);
     //
     register_object_ret("point_distance", point_distance, pb::INT64);
     register_object_ret("cast_to_date", cast_to_date, pb::DATE);
