@@ -1386,12 +1386,12 @@ inline bool float_equal(double value, double compare, double epsilon = 1e-9) {
 }
 
 inline std::string redis_encode(std::string str) {
-    //\n<length>\n<data>
+    //<length>\n<data>\n
     std::string tmp;
-    tmp += "\n";
     tmp += std::to_string(str.length());
     tmp += "\n";
     tmp += str;
+    tmp += "\n";
     return tmp;
 }
 
