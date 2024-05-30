@@ -1,11 +1,11 @@
 #include <stdlib.h>
 #include <stdint.h>
-#include <cstring>
-#include <cmath>
+#include <string.h>
+#include <math.h>
 #include <errno.h>
 #include <ctype.h>
 #include <stdio.h>
-#include <climits>
+#include <limits.h>
 
 #define MAX_LONG_DOUBLE_CHARS 5*1024
 
