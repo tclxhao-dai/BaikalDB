@@ -81,10 +81,9 @@ public:
         _conjuncts.swap(conjuncts);
     }
     void modifiy_pruned_conjuncts_by_index(std::vector<ExprNode*>& filter_condition) {
-        _pruned_conjuncts.clear();
+        _pruned_conjuncts.swap(filter_condition);
         _raw_filter_node.Clear();
         _filter_node.clear();
-        _pruned_conjuncts.swap(filter_condition);
         if (!_pruned_conjuncts.empty()) {
             for (auto expr : _pruned_conjuncts) {
                 ExprNode::create_pb_expr(_raw_filter_node.add_conjuncts(), expr);

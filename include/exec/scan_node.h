@@ -415,7 +415,7 @@ public:
     void swap_index_info(MergeIndexInfo& info) {
         info._main_path.init(_table_id);
         std::swap(info._conjuncts, _filter_node->conjuncts());
-        std::swap(info._pruned_conjuncts, _filter_node->pruned_conjuncts());
+        _filter_node->modifiy_pruned_conjuncts_by_index(info._pruned_conjuncts);
         std::swap(info._main_path, _main_path);
         std::swap(info._select_idx, _select_idx);
         std::swap(info._scan_indexs, _scan_indexs);

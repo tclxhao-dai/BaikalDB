@@ -845,7 +845,8 @@ int64_t IndexSelector::index_merge_selector(const std::vector<pb::TupleDescripto
         }
         scan_node->add_merge_index_info();
     }
-    filter_node->modifiy_pruned_conjuncts_by_index(scan_node->origin_index_info()._pruned_conjuncts); // 还原filter_node
+    // filter_node->modifiy_pruned_conjuncts_by_index(scan_node->origin_index_info()._pruned_conjuncts); // 还原filter_node
+    // scan_node中交换filter_node的_pruned_conjuncts
     scan_node->swap_index_info(scan_node->origin_index_info()); // 还原scan_node
     if (!use_index_merge) {
         scan_node->clear_merge_index_info();

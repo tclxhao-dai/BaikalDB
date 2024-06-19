@@ -697,7 +697,8 @@ int SelectManagerNode::merge_fetcher_store_run(RuntimeState* state, ExecNode* ex
     };
 
     for (auto& index_info : scan_node->merge_index_infos()) {
-        filter_node->modifiy_pruned_conjuncts_by_index(index_info._pruned_conjuncts);
+        // filter_node->modifiy_pruned_conjuncts_by_index(index_info._pruned_conjuncts);
+        // scan_node中交换filter_node的_pruned_conjuncts
         scan_node->swap_index_info(index_info);
         if (filter_node->get_limit() != -1 && filter_node->pruned_conjuncts().empty()) {
             scan_node->set_limit(filter_node->get_limit());
