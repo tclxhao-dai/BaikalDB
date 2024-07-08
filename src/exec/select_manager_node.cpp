@@ -450,28 +450,14 @@ int SelectManagerNode::fetcher_primary_pipeline(
     };
 
 
-    std::map<std::string, pb::RegionInfo> finded_region_map;
-
     int fetcher_primary_count = std::max(FLAGS_fetcher_primary_once_count, 1024);
 
     auto add_one_record = [&](MutTableKey &key) -> int {
         pb::RegionInfo region_info;
-        auto find_iter = finded_region_map.upper_bound(key.data());
-        if (find_iter != finded_region_map.begin()) {
-            --find_iter;
-        }
-        if (find_iter != finded_region_map.end()) {
-             if (find_iter->second.end_key() == "" || key.data() < find_iter->second.end_key()) {
-                 region_info = find_iter->second;
-             }
-        }
-        if (!region_info.has_region_id()){
-            int ret = _factory->get_region_by_primary_key(main_table_id, *pri_info, key, 0, region_info);
-            if (ret) {
-                DB_WARNING("get region error!");
-                return ret;
-            }
-            finded_region_map[region_info.start_key()] = region_info;
+        int ret = _factory->get_region_by_primary_key(main_table_id, *pri_info, key, 0, region_info);
+        if (ret) {
+            DB_WARNING("get region error!");
+            return ret;
         }
         auto iter = region_primary_map.find(region_info.region_id());
         if (iter == region_primary_map.end()) {
