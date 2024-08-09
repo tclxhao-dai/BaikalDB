@@ -243,7 +243,7 @@ int PreparePlanner::stmt_execute(const std::string& stmt_name, std::vector<pb::E
     }
 
     std::shared_ptr<QueryContext> prepare_ctx = iter->second;
-    prepare_ctx->get_runtime_state()->reset_cost_time();
+    prepare_ctx->get_runtime_state()->prepare_reset();
     _ctx->stat_info.family = prepare_ctx->stat_info.family;
     _ctx->stat_info.table = prepare_ctx->stat_info.table;
     _ctx->stat_info.sample_sql << prepare_ctx->stat_info.sample_sql.str();
