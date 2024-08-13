@@ -31,6 +31,8 @@
 
 namespace baikaldb {
 DECLARE_int64(time_between_meta_connect_error_ms);
+
+typedef std::shared_ptr<brpc::Channel> SmartChannel;
 class MetaServerInteract {
     struct MetaInteractInfo;
 public:
@@ -109,6 +111,10 @@ public:
                     DB_WARNING("connet with meta server success by bns name, leader:%s",
                                 butil::endpoint2str(cntl.remote_side()).c_str());
                     return 0;
+                } else if (cntl.Failed()) {
+                    DB_WARNING("connet with meta server fail by bns name, error:%s, log_id: %lu",
+                                cntl.ErrorText().c_str(), cntl.log_id());
+                    return -1;
                 }
             }
             SELF_TRACE("meta_req[%s], meta_resp[%s]", request.ShortDebugString().c_str(), response.ShortDebugString().c_str());
