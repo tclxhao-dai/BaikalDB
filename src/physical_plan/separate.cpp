@@ -23,6 +23,7 @@
 #include "sort_node.h"
 #include "filter_node.h"
 #include "full_export_node.h"
+#include "scan_region_order_node.h"
 #include "insert_node.h"
 #include "transaction_node.h"
 #include "begin_manager_node.h"
@@ -168,6 +169,43 @@ int Separate::create_full_export_node(ExecNode* plan) {
     return 0;
 }
 
+int Separate::create_scan_region_order_node(ExecNode* plan) {
+    std::vector<ExecNode*> scan_nodes;
+    plan->get_node(pb::SCAN_NODE, scan_nodes);
+    PacketNode* packet_node = static_cast<PacketNode*>(plan->get_node(pb::PACKET_NODE));
+    LimitNode* limit_node = static_cast<LimitNode*>(plan->get_node(pb::LIMIT_NODE));
+    std::unique_ptr<ExecNode> export_node(new (std::nothrow) ScanRegionOrderNode);
+    if (export_node == nullptr) {
+        DB_WARNING("new export node fail");
+        return -1;
+    }
+    pb::PlanNode pb_fetch_node;
+    pb_fetch_node.set_node_type(pb::SCAN_REGION_ORDER_NODE);
+    pb_fetch_node.set_limit(-1);
+    export_node->init(pb_fetch_node);
+    std::map<int64_t, pb::RegionInfo> region_infos =
+            static_cast<RocksdbScanNode*>(scan_nodes[0])->region_infos();
+    export_node->set_region_infos(region_infos);
+    static_cast<RocksdbScanNode*>(scan_nodes[0])->set_related_manager_node(export_node.get());
+
+    if (limit_node != nullptr) {
+        export_node->add_child(limit_node->children(0));
+        limit_node->clear_children();
+        limit_node->add_child(export_node.release());
+    } else if (packet_node != nullptr) {
+        // 普通plan
+        export_node->add_child(packet_node->children(0));
+        packet_node->clear_children();
+        packet_node->add_child(export_node.release());
+    } else {
+        // apply plan
+        ExecNode* parent = plan->get_parent();
+        export_node->add_child(plan);
+        parent->replace_child(plan, export_node.release());
+    }
+    return 0;
+}
+
 int Separate::separate_select(QueryContext* ctx) {
     ExecNode* plan = ctx->root;
     std::vector<ExecNode*> join_nodes;
@@ -197,6 +235,9 @@ int Separate::separate_simple_select(QueryContext* ctx, ExecNode* plan) {
     // join或者apply的情况下只有主表做full_export
     if (ctx->is_full_export && _is_first_full_export) {
         return create_full_export_node(plan);
+    }
+    if (ctx->is_scan_region_by_order) {
+        return create_scan_region_order_node(plan);
     }
     PacketNode* packet_node = static_cast<PacketNode*>(plan->get_node(pb::PACKET_NODE));
     LimitNode* limit_node = static_cast<LimitNode*>(plan->get_node(pb::LIMIT_NODE));

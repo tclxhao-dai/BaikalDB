@@ -1189,6 +1189,17 @@ int StateMachine::_get_json_attributes(std::shared_ptr<QueryContext> ctx) {
                 ctx->is_full_export = json_iter->value.GetBool();
                 DB_WARNING("full_export: %d", ctx->is_full_export);
             }
+            json_iter = root.FindMember("start_region_id");
+            if (json_iter != root.MemberEnd()) {
+                ctx->start_region_id = json_iter->value.GetInt64();
+                ctx->is_scan_region_by_order = true;
+                DB_WARNING("start_region_id: %ld", ctx->start_region_id);
+            }
+            json_iter = root.FindMember("scan_region_count");
+            if (json_iter != root.MemberEnd()) {
+                ctx->scan_region_count = json_iter->value.GetInt64();
+                DB_WARNING("scan_region_count: %ld", ctx->scan_region_count);
+            }
             json_iter = root.FindMember("single_store_concurrency");
             if (json_iter != root.MemberEnd()) {
                 ctx->single_store_concurrency = json_iter->value.GetInt();
@@ -1811,6 +1822,8 @@ bool StateMachine::_handle_client_query_common_query(SmartSocket client) {
         _wrapper->make_simple_ok_packet(client);
         return true;
     }
+
+    client->query_ctx->client_conn->last_scan_region_id = -1;
 
     //DB_WARNING("client: %ld ,seq_id: %d", client.get(), client->seq_id);
     // 不会有fether那一层，重构

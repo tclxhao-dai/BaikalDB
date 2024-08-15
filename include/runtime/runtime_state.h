@@ -459,6 +459,9 @@ public:
     int64_t           _sql_exec_timeout = -1;
     bool              _is_ddl_work = false;
     bool              must_have_one = false;
+
+    int64_t start_region_id = -1;
+    int64_t scan_region_count = -1;
 private:
     bool _is_inited    = false;
     bool _is_cancelled = false;

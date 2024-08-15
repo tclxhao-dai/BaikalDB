@@ -34,6 +34,7 @@
 #include "lock_primary_node.h"
 #include "lock_secondary_node.h"
 #include "full_export_node.h"
+#include "scan_region_order_node.h"
 #include "union_node.h"
 #include "apply_node.h"
 #include "load_node.h"
@@ -352,6 +353,8 @@ int ExecNode::create_exec_node(const pb::PlanNode& node, ExecNode** exec_node) {
         case pb::FULL_EXPORT_NODE:
             *exec_node = new FullExportNode;
             return (*exec_node)->init(node);
+        case pb::SCAN_REGION_ORDER_NODE:
+            *exec_node = new ScanRegionOrderNode;
         case pb::DUAL_SCAN_NODE:
             *exec_node = new DualScanNode;
             return (*exec_node)->init(node);

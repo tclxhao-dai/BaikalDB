@@ -155,6 +155,9 @@ bool SelectPlanner::is_full_export() {
     if (_ctx->debug_region_id != -1) {
         return false;
     }
+    if (_ctx->start_region_id != -1) {
+        return false;
+    }
     if (_ctx->has_derived_table || _ctx->has_information_schema) {
         return false;
     }

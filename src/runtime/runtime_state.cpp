@@ -140,6 +140,10 @@ int RuntimeState::init(QueryContext* ctx, DataBuffer* send_buf) {
     _tuple_descs = ctx->tuple_descs();
     uint64_t tuple_sign = tuple_descs_to_sign();
 
+    // scan region by order需要的字段
+    start_region_id = ctx->start_region_id;
+    scan_region_count = ctx->scan_region_count;
+
     //取出缓存的动态编译结果(按照签名)
     if (_tuple_descs.size() > 0 && sign != 0 && tuple_sign != 0) {
         if (sql_sign_to_mem_row_descriptor.count(tuple_sign) == 1) {
