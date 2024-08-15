@@ -46,6 +46,7 @@ enum PlanNodeType {
     APPLY_NODE = 37;
     LOAD_NODE = 38;
     BASE_SUBSCRIBE_MANAGER_NODE = 39;
+    SCAN_REGION_ORDER_NODE = 40;
 };
 
 enum TxnCmdType {

@@ -510,6 +510,8 @@ public:
     pb::Charset connection_charset = pb::CS_UNKNOWN;
     pb::Charset table_charset = pb::CS_UNKNOWN;
 
+    int64_t start_region_id = -1;
+    int64_t scan_region_count = -1;
 private:
     bool _is_inited    = false;
     bool _is_cancelled = false;

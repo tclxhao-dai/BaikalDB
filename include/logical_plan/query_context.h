@@ -262,6 +262,7 @@ public:
     bool                is_explain = false;
     bool                is_get_keypoint = false;
     bool                is_full_export = false;
+    bool                is_scan_region_by_order = false;
     bool                is_straight_join = false;
     bool                select_for_update = false;
     ExplainType         explain_type = EXPLAIN_NULL;
@@ -320,6 +321,12 @@ public:
     // user can scan data in specific region by comments 
     // /*{"region_id":$region_id}*/ preceding a Select statement 
     int64_t             debug_region_id = -1;
+
+    // full_export_node 开始的region_id
+    // 每次从等于 start_region_id的region进行扫描 
+    // scan_region_count代表扫描的region数，达到个数后退出
+    int64_t             start_region_id = -1;
+    int64_t             scan_region_count = -1;
 
     // user can scan data in specific peer by comments
     // /*{"peer_index":$peer_index}*/ preceding a Select statement

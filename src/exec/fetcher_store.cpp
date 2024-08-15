@@ -507,6 +507,7 @@ void OnRPCDone::Run() {
     DB_DONE(DEBUG, "fetch store req: %s", _request.ShortDebugString().c_str());
     DB_DONE(DEBUG, "fetch store res: %s", _response_ptr->ShortDebugString().c_str());
     std::string remote_side = butil::endpoint2str(_cntl.remote_side()).c_str();
+    _client_conn->last_scan_region_id = _region_id;
     int64_t query_cost = _query_time.get_time();
     if (query_cost > FLAGS_print_time_us || _retry_times > 0) {
         DB_DONE(WARNING, "version:%ld time:%ld rpc_time:%ld ip:%s, dynamic_timeout_ms:%ld vectorize:[%d, %d]",

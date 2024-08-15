@@ -31,7 +31,7 @@ int PlanRouter::analyze(QueryContext* ctx) {
     if (!plan->need_seperate()) {
         return 0;
     }
-    _is_full_export = ctx->is_full_export;
+    _is_full_export = ctx->is_full_export; 
     PacketNode* packet_node = static_cast<PacketNode*>(plan->get_node(pb::PACKET_NODE));
     if (packet_node != nullptr && packet_node->op_type() == pb::OP_LOAD) {
         return 0;

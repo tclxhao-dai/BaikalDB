@@ -2273,6 +2273,22 @@ int LogicalPlanner::create_scala_func_expr(const parser::FuncExpr* item,
             _ctx->has_unable_cache_expr = true;
             return 0;
         }
+        if (lower_fn_name == "last_scan_region_id") {
+            pb::ExprNode* node = expr.add_nodes();
+            node->set_node_type(pb::INT_LITERAL);
+            node->set_col_type(pb::INT64);
+            node->set_num_children(0);
+            node->mutable_derive_node()->set_int_val(_ctx->client_conn->last_scan_region_id);
+            return 0;
+        }
+        if (lower_fn_name == "last_scan_region_id") {
+            pb::ExprNode* node = expr.add_nodes();
+            node->set_node_type(pb::INT_LITERAL);
+            node->set_col_type(pb::INT64);
+            node->set_num_children(0);
+            node->mutable_derive_node()->set_int_val(_ctx->client_conn->last_scan_region_id);
+            return 0;
+        }
         if (lower_fn_name == "last_value" && item->children.size() == 0) {
             pb::ExprNode* node = expr.add_nodes();
             node->set_node_type(pb::STRING_LITERAL);

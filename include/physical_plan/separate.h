@@ -83,6 +83,7 @@ private:
             ExecNode* manager_node);
 
     int create_full_export_node(ExecNode* plan);
+    int create_scan_region_order_node(ExecNode* plan);
 
     SelectManagerNode* create_select_manager_node();
     bool need_separate_single_txn(QueryContext* ctx, const int64_t main_table_id);
