@@ -778,7 +778,9 @@ int IndexSelector::select_partition(SmartTable& table_info, ScanNode* scan_node,
         auto partition_type = table_info->partition_ptr->partition_type();
         auto field_iter = field_range_map.find(table_info->partition_ptr->partition_field_id());
         if (partition_type == pb::PT_HASH) {
-            if (field_iter != field_range_map.end() && !field_iter->second.eq_in_values.empty()) {
+            if (field_iter != field_range_map.end()
+                && (field_iter->second.type == EQ || field_iter->second.type == IN || field_iter->second.type == LIKE_EQ) 
+                && !field_iter->second.eq_in_values.empty()) {
                 ExprValueFlatSet eq_in_values_set;
                 eq_in_values_set.init(ajust_flat_size(field_iter->second.eq_in_values.size()));
                 for (auto& value : field_iter->second.eq_in_values) {
