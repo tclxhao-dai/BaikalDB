@@ -103,16 +103,18 @@ int IndexSelector::analyze(QueryContext* ctx) {
             ctx->field_range_type = field_range_type;
         }
 
-        int32_t r = index_merge_selector(ctx->tuple_descs(),
-                             static_cast<ScanNode*>(scan_node_ptr),
-                             filter_node,
-                             (join_node != NULL || agg_node != NULL) ? NULL: sort_node,
-                             join_node,
-                             &index_has_null,
-                             field_range_type,
-                             ctx->stat_info.sample_sql.str());
-        if (r > 0) {
-            scan_node_ptr->set_has_optimized(true);
+        if (ctx->is_select || ctx->execute_global_flow) {
+            int32_t r = index_merge_selector(ctx->tuple_descs(),
+                                 static_cast<ScanNode*>(scan_node_ptr),
+                                 filter_node,
+                                 (join_node != NULL || agg_node != NULL) ? NULL: sort_node,
+                                 join_node,
+                                 &index_has_null,
+                                 field_range_type,
+                                 ctx->stat_info.sample_sql.str());
+            if (r > 0) {
+                scan_node_ptr->set_has_optimized(true);
+            }
         }
     }
     return 0;
