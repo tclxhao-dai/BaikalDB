@@ -511,6 +511,9 @@ int DMLNode::get_lock_row(RuntimeState* state, SmartRecord record, std::string* 
                     record->get_value(field));
         }
     }
+    if (_last_value_expr != nullptr) {
+        state->last_value += redis_encode(_last_value_expr->get_value(row).get_string());
+    }
     return 0;
 }
 
@@ -603,9 +606,10 @@ int DMLNode::delete_row(RuntimeState* state, SmartRecord record, MemRow* row) {
         DB_WARNING_STATE(state, "lock table:%ld failed", _table_id);
         return -1;
     }
-    if (_last_value_expr != nullptr) {
-        state->last_value += redis_encode(_last_value_expr->get_value(row).get_string());
-    }
+    // 放到get_lock_row中， 保证update也可以返回
+    // if (_last_value_expr != nullptr) {
+    //     state->last_value += redis_encode(_last_value_expr->get_value(row).get_string());
+    // }
 
     if (!satisfy_condition_again(state, row)) {
         DB_WARNING_STATE(state, "condition changed when delete record:%s", record->debug_string().c_str());
