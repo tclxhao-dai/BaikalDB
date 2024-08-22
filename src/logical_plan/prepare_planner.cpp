@@ -248,6 +248,9 @@ int PreparePlanner::stmt_execute(const std::string& stmt_name, std::vector<pb::E
     _ctx->stat_info.table = prepare_ctx->stat_info.table;
     _ctx->stat_info.sample_sql << prepare_ctx->stat_info.sample_sql.str();
     _ctx->stat_info.sign = prepare_ctx->stat_info.sign;
+    _ctx->is_full_export = prepare_ctx->is_full_export;
+    _ctx->debug_region_id = prepare_ctx->debug_region_id;
+    _ctx->execute_global_flow = prepare_ctx->execute_global_flow;
     if (params.size() != prepare_ctx->placeholders.size()) {
         _ctx->stat_info.error_code = ER_WRONG_ARGUMENTS;
         _ctx->stat_info.error_msg << "Incorrect arguments to EXECUTE: " 
