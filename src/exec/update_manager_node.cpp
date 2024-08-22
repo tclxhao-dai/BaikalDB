@@ -271,6 +271,10 @@ void UpdateManagerNode::update_record(RuntimeState* state, SmartRecord record) {
             }
             state->client_conn()->last_value += redis_encode(last_value_expr->get_value(row).get_string());
         }
+        auto last_insert_id_expr = expr->get_last_insert_id();
+        if (last_insert_id_expr != nullptr) {
+            state->client_conn()->last_insert_id = last_insert_id_expr->get_value(row).get_numberic<int64_t>();
+        }
     }
 }
 }
