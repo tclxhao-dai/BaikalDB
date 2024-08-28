@@ -165,7 +165,7 @@ int RocksdbScanNode::choose_index(RuntimeState* state) {
         check_memory = true;
     }
     bool has_global_param = false;
-    if (pos_index.has_is_eq()) {
+    if (pos_index.has_is_eq() && pos_index.has_left_field_cnt()) {
         has_global_param = true;
         _is_eq = pos_index.is_eq();
         _like_prefix = pos_index.like_prefix();
@@ -175,18 +175,11 @@ int RocksdbScanNode::choose_index(RuntimeState* state) {
         _right_open = pos_index.right_open();
     }
     for (auto& range : pos_index.ranges()) {
-        if (!_is_eq) {
-            _scan_range_keys.add_key(range.left_key(), range.left_full(), range.right_key(), range.right_full());
-        } else {
-            _scan_range_keys.add_key(range.left_key(), range.left_full(), range.left_key(), range.left_full());
-        }
-        if (check_memory) {
-            ranges_used_size += range.left_key().size() * 2;
-            ranges_used_size += range.right_key().size() * 2;
-            ranges_used_size += 100; // 估计值
-        }
         if (!has_global_param) {
             has_global_param = true;
+            if (range.left_key() == range.right_key()) {
+                _is_eq = true;
+            }
             _left_field_cnt = range.left_field_cnt();
             _right_field_cnt = range.right_field_cnt();
             _left_open = range.left_open();
@@ -196,6 +189,16 @@ int RocksdbScanNode::choose_index(RuntimeState* state) {
                 _right_field_cnt = _left_field_cnt;
                 _right_open = _left_open;
             }
+        }
+        if (!_is_eq) {
+            _scan_range_keys.add_key(range.left_key(), range.left_full(), range.right_key(), range.right_full());
+        } else {
+            _scan_range_keys.add_key(range.left_key(), range.left_full(), range.left_key(), range.left_full());
+        }
+        if (check_memory) {
+            ranges_used_size += range.left_key().size() * 2;
+            ranges_used_size += range.right_key().size() * 2;
+            ranges_used_size += 100; // 估计值
         }
     }
     _scan_range_keys.set_start_capacity(state->row_batch_capacity());
