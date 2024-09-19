@@ -27,7 +27,7 @@ class TopNSorter : public Sorter {
 public:
     TopNSorter(MemRowCompare* comp) : Sorter(comp), _limit(1) {
     }
-    void set_limit(int limit) {
+    void set_limit(int64_t limit) {
         if (limit > 1) {
             _limit = limit;
         }
@@ -46,7 +46,7 @@ private:
 
 private:
     std::vector<std::unique_ptr<MemRow>> _mem_min_heap;
-    int _limit = 1;
+    int64_t _limit = -1;
     int _current_count = 0;
 };
 }
