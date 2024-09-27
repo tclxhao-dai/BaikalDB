@@ -23,6 +23,8 @@ DEFINE_bool(global_index_read_consistent, true, "double check for global and pri
 DEFINE_int32(max_select_region_count, -1, "max select sql region count limit, default:-1 means no limit");
 DEFINE_int32(fetcher_primary_once_count, 16384, "fetcher primary once count");
 DEFINE_bool(fetcher_primary_pipeline, false, "fetcher primary pipeline");
+BRPC_VALIDATE_GFLAG(fetcher_primary_pipeline, brpc::PassValidate);
+BRPC_VALIDATE_GFLAG(fetcher_primary_once_count, brpc::PassValidate);
 int SelectManagerNode::open(RuntimeState* state) {
     START_LOCAL_TRACE(get_trace(), state->get_trace_cost(), OPEN_TRACE, ([state](TraceLocalNode& local_node) {
         local_node.set_scan_rows(state->num_scan_rows());
@@ -409,7 +411,7 @@ int SelectManagerNode::open_global_index(FetcherInfo* fetcher, RuntimeState* sta
         return -1;
     }
 
-    if (!FLAGS_fetcher_primary_pipeline) {
+    if (state->txn_id != 0 || !FLAGS_fetcher_primary_pipeline) {
         return fetcher_primary(fetcher, state, scan_node, pri_info, limit, main_table_id);
     } else {
         return fetcher_primary_pipeline(fetcher, state, scan_node, pri_info, limit, main_table_id);
