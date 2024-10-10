@@ -121,6 +121,15 @@ public:
         return nullptr;
     }
 
+    bool is_empty_filter() {
+        //只有scan_node做索引条件的时候会用_pruned_conjuncts
+        if (_children.size() > 0 && _children[0]->node_type() == pb::SCAN_NODE) {
+            return _pruned_conjuncts.empty();
+        } else {
+            return _conjuncts.empty();
+        }
+    }
+
 private:
     bool need_copy(MemRow* row);
 private:
