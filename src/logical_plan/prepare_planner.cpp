@@ -173,7 +173,8 @@ int PreparePlanner::stmt_prepare(const std::string& stmt_name, const std::string
     prepare_ctx->client_conn = client;
     prepare_ctx->get_runtime_state()->set_client_conn(client);
     prepare_ctx->sql = stmt_sql;
-    prepare_ctx->is_full_export = _ctx->is_full_export;
+    //prepare_ctx->is_full_export = _ctx->is_full_export;
+    prepare_ctx->is_full_export = false;
     prepare_ctx->is_scan_region_by_order = _ctx->is_scan_region_by_order;
     prepare_ctx->start_region_id = _ctx->start_region_id;
     prepare_ctx->debug_region_id = _ctx->debug_region_id;
@@ -255,7 +256,8 @@ int PreparePlanner::stmt_execute(const std::string& stmt_name, std::vector<pb::E
     _ctx->stat_info.table = prepare_ctx->stat_info.table;
     _ctx->stat_info.sample_sql << prepare_ctx->stat_info.sample_sql.str();
     _ctx->stat_info.sign = prepare_ctx->stat_info.sign;
-    _ctx->is_full_export = prepare_ctx->is_full_export;
+    //_ctx->is_full_export = prepare_ctx->is_full_export;
+    _ctx->is_full_export = false;
     _ctx->execute_global_flow = prepare_ctx->execute_global_flow;
     _ctx->is_scan_region_by_order = prepare_ctx->is_scan_region_by_order;
     _ctx->start_region_id = prepare_ctx->start_region_id;
