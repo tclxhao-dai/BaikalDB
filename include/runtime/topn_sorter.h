@@ -23,31 +23,29 @@
 
 namespace baikaldb {
 //对每个batch并行的做sort后，再用heap做归并
+
+struct TopNHeapItem {
+    std::unique_ptr<baikaldb::MemRow> row;
+    int64_t idx;
+};
+
 class TopNSorter : public Sorter {
 public:
-    TopNSorter(MemRowCompare* comp) : Sorter(comp), _limit(1) {
-    }
-    void set_limit(int64_t limit) {
-        if (limit > 1) {
-            _limit = limit;
-        }
+    TopNSorter(MemRowCompare* comp, int64_t limit) : Sorter(comp), _limit(limit) {
     }
     virtual void add_batch(std::shared_ptr<RowBatch>& batch);
-    virtual int get_next(RowBatch* batch, bool* eos);
-    virtual void sort(){
-        for (size_t i = 1; i < _current_count; ++ i) {
-            shiftup(i);
-        }
-    }
+    virtual void sort();
     virtual void merge_sort(){}
+    virtual int get_next(RowBatch* batch, bool* eos);
 private:
-    void shiftdown(size_t index, bool flag = false);
-    void shiftup(size_t index, bool flag = false);
+    virtual void shiftdown(size_t index);
+    virtual void shiftup(size_t index);
 
 private:
-    std::vector<std::unique_ptr<MemRow>> _mem_min_heap;
+    std::vector<TopNHeapItem> _mem_row_heap;
     int64_t _limit = -1;
-    int _current_count = 0;
+    int64_t _current_count = 0;
+    int64_t _current_idx = 0;
 };
 }
 

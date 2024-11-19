@@ -40,7 +40,7 @@ public:
 private:
     void multi_sort();
     void make_heap();
-    void shiftdown(size_t index);
+    virtual void shiftdown(size_t index);
 
 protected:
     MemRowCompare* _comp;
