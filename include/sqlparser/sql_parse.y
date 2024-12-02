@@ -4029,7 +4029,7 @@ FloatingPointType:
 BitValueType:
     BIT
     {
-        $$ = MYSQL_TYPE_LONG;
+        $$ = MYSQL_TYPE_BIT;
     }
     ;
 
