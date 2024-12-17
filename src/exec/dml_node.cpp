@@ -688,6 +688,12 @@ int DMLNode::update_row(RuntimeState* state, SmartRecord record, MemRow* row) {
         auto& slot = _update_slots[i];
         auto expr = _update_exprs[i];
         auto field = _update_fields[slot.field_id()];
+        if (field == nullptr) {
+            state->error_code = ER_BAD_FIELD_ERROR;
+            state->error_msg << "Unknown column id " << slot.field_id() << " in 'field list'";
+            DB_WARNING_STATE(state, "Unknown column, table_id: %d, field_id: %d", slot.table_id(), slot.field_id());
+            return -1;
+        }
         if (field->type == pb::FLOAT || field->type == pb::DOUBLE || field->type == pb::DATETIME) {
             auto& expr_value = expr->get_value(row).cast_to(slot.slot_type());
             expr_value.set_precision_len(field->float_precision_len);
