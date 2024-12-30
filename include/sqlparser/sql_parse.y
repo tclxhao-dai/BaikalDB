@@ -747,6 +747,7 @@ extern int sql_error(YYLTYPE* yylloc, yyscan_t yyscanner, SqlParser* parser, con
 %left JOIN STRAIGHT_JOIN INNER CROSS LEFT RIGHT FULL NATURAL
 %precedence ON USING
 
+%right NOT
 %left XOR OR
 %left AND
 %left EQ_OP NE_OP GE_OP GT_OP LE_OP LT_OP IS LIKE IN 
@@ -758,7 +759,7 @@ extern int sql_error(YYLTYPE* yylloc, yyscan_t yyscanner, SqlParser* parser, con
 %left '*' '/' MOD_OP  MOD
 %left '^'
 %left COLLATE BINARY
-%right '~' NEG NOT NOT_OP
+%right '~' NEG NOT_OP
 %right '.'
 %nonassoc '('
 %nonassoc QUICK
@@ -3070,9 +3071,6 @@ SimpleExpr:
     | '+' SimpleExpr %prec NEG { 
         $$ = $2;
     }
-    | NOT SimpleExpr {
-        $$ = FuncExpr::new_unary_op_node(FT_LOGIC_NOT, $2, parser->arena);
-    }
     | NOT_OP SimpleExpr {
         $$ = FuncExpr::new_unary_op_node(FT_LOGIC_NOT, $2, parser->arena);
     }
@@ -3215,6 +3213,9 @@ Operators:
     }
     | Expr COLLATE StringName {
         $$ = $1;
+    }
+    | NOT Expr {
+        $$ = FuncExpr::new_unary_op_node(FT_LOGIC_NOT, $2, parser->arena);
     }
     ;
 
