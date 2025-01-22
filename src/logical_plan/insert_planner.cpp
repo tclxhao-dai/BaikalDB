@@ -123,6 +123,7 @@ int InsertPlanner::parse_db_table(pb::InsertNode* node) {
     }
     _ctx->stat_info.family = database;
     _ctx->stat_info.table = table;
+    _current_tables.emplace_back(database + "." + table);
     if (0 != add_table(database, table, alias, false)) {
         DB_WARNING("invalid database or table:%s.%s", database.c_str(), table.c_str());
         return -1;
