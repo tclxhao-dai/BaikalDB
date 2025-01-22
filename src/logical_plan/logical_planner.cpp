@@ -2975,6 +2975,8 @@ std::string LogicalPlanner::get_field_alias_name(const parser::ColumnName* colum
                 }
                 DB_WARNING("ambiguous field_name: %s", column->to_string().c_str());
                 return "";
+            } else {
+                DB_WARNING("attention!!! sql sign : %lu  has ambiguous field_name: %s", _ctx->stat_info.sign, column->to_string().c_str());
             }
         }
         alias_name += *dbs.begin();
@@ -2993,14 +2995,14 @@ std::string LogicalPlanner::get_field_alias_name(const parser::ColumnName* colum
             return "";
         } else if (tables.size() == 1) {
             const std::string& table_name = *tables.begin();
-            if(std::find(_current_tables.begin(), _current_tables.end(), table_name) != _current_tables.cend()) {
+            if (std::find(_current_tables.begin(), _current_tables.end(), table_name) != _current_tables.cend()) {
                 // 如果可能的table name 在 _current_tables 中，则说明该字段在当前查询中存在
                 alias_name += table_name;
             } else {
                 // 如果可能的table name 并不在 _current_tables 中，则说明该字段在当前查询中不存在,打印一则警告，
                 // 返回_current_tables的一个表名，后续的代码中，如果找不到该字段则会报错。方便用户理解报错原因。
                 std::string errMesg;
-                for(int i = 0; i < _current_tables.size(); ++i) {
+                for (int i = 0; i < _current_tables.size(); ++i) {
                     errMesg += _current_tables[i];
                     if (i < _current_tables.size() - 1) {
                         errMesg += ", ";
@@ -3033,6 +3035,8 @@ std::string LogicalPlanner::get_field_alias_name(const parser::ColumnName* colum
                     _ctx->stat_info.error_msg << "column \'" << column->name << "\' is ambiguous";
                 }
                 return "";
+            } else {
+                DB_WARNING("attention!!! sql sign : %lu  has ambiguous field_name: %s", _ctx->stat_info.sign, column->to_string().c_str());
             }
         }
         alias_name += *tables.begin();
@@ -3121,20 +3125,24 @@ int LogicalPlanner::create_alias_node(const parser::ColumnName* column, pb::Expr
     }
     std::string lower_name = column->name.to_lower();
     int match_count = _select_alias_mapping.count(lower_name);
-    if (match_count > 1 && !FLAGS_disambiguate_select_name) {
-        DB_WARNING("column name: %s is ambiguous", column->name.c_str());
-        return -2;
+    if (match_count > 1) {
+        if (!FLAGS_disambiguate_select_name) {
+            DB_WARNING("column name: %s is ambiguous", column->name.c_str());
+            return -2;
+        } else {
+            DB_WARNING("attention!!! sql sign : %lu  has ambiguous field_name: %s", _ctx->stat_info.sign, column->to_string().c_str());
+        }
     } else if (match_count == 0) {
         //DB_WARNING("invalid column name: %s", column->name.c_str());
         return -1;
-    } else {
-        auto iter = _select_alias_mapping.find(lower_name);
-        if (iter != _select_alias_mapping.end() && iter->second >= _select_exprs.size()) {
-            //DB_WARNING("invalid column name: %s", column->name.c_str());
-            return -1;
-        }
-        expr.MergeFrom(_select_exprs[iter->second]);
     }
+
+    auto iter = _select_alias_mapping.find(lower_name);
+    if (iter != _select_alias_mapping.end() && iter->second >= _select_exprs.size()) {
+        //DB_WARNING("invalid column name: %s", column->name.c_str());
+        return -1;
+    }
+    expr.MergeFrom(_select_exprs[iter->second]);
     return 0;
 }
 
