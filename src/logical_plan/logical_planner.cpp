@@ -2991,6 +2991,26 @@ std::string LogicalPlanner::get_field_alias_name(const parser::ColumnName* colum
             }
             DB_WARNING("no table found for field: %s", column->to_string().c_str());
             return "";
+        } else if (tables.size() == 1) {
+            const std::string& table_name = *tables.begin();
+            if(std::find(_current_tables.begin(), _current_tables.end(), table_name) != _current_tables.cend()) {
+                // 如果可能的table name 在 _current_tables 中，则说明该字段在当前查询中存在
+                alias_name += table_name;
+            } else {
+                // 如果可能的table name 并不在 _current_tables 中，则说明该字段在当前查询中不存在,打印一则警告，
+                // 返回_current_tables的一个表名，后续的代码中，如果找不到该字段则会报错。方便用户理解报错原因。
+                std::string errMesg;
+                for(int i = 0; i < _current_tables.size(); ++i) {
+                    errMesg += _current_tables[i];
+                    if (i < _current_tables.size() - 1) {
+                        errMesg += ", ";
+                    }
+                }
+                DB_WARNING("sql not find field_name : %s  in table :%s", column->to_string().c_str(),errMesg.c_str());
+                // 这里返回一个空表，后续代码中如果找不到该字段则会报错[field_name not found in table: tt1] 
+                alias_name = ""; 
+            }
+            return alias_name;
         } else if (tables.size() > 1) {
             // select id from t1 as tt1 join (select id from t2) as tt2 where tt1.id=tt2.id;
             std::vector<std::string> meet_tables;
