@@ -590,7 +590,10 @@ void TransactionPool::clear_transactions(Region* region) {
                  txn->last_active_time,
                  (cur_time - txn->last_active_time) / 1000000);
         // 10s未更新的事务询问primary region事务状态
-        } else if (cur_time - txn->last_active_time > FLAGS_transaction_query_primary_region_interval_ms * 1000LL) {
+        // 存活大于10s的事务，请求primary region，用于primary 使用最大seq_id更新active time
+        } else if (cur_time - txn->begin_time > FLAGS_transaction_query_primary_region_interval_ms * 1000LL
+            || (!txn->is_primary_region() && !txn->has_query_primary && cur_time - txn->begin_time > 1000 * 1000LL)) {
+            txn->has_query_primary = true;
             txns_need_query_primary.emplace_back(txn->txn_id());
         }
     };
