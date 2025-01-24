@@ -278,6 +278,9 @@ public:
             DB_WARNING("txn:%lu seq_id fallback seq_id:%d _seq_id:%d", _txn_id, seq_id, _seq_id);
             return;
         }
+        if (max_seq_id < seq_id) {
+            max_seq_id = seq_id;
+        }
         _seq_id = seq_id;
     }
 
@@ -334,6 +337,13 @@ public:
 
     void reset_active_time() {
         last_active_time = butil::gettimeofday_us();
+    }
+
+    void update_max_seq_id(int seq_id) {
+        if (max_seq_id < seq_id) {
+            max_seq_id = seq_id;
+            last_active_time = butil::gettimeofday_us();
+        }
     }
 
     void push_cmd_to_cache(int seq_id, pb::CachePlan plan_item) {
@@ -556,6 +566,8 @@ public:
 public:
     int64_t     num_increase_rows = 0;
     int64_t     last_active_time = 0;
+    int64_t     max_seq_id = 0;
+    bool        has_query_primary = false;
     int64_t     begin_time = 0;
     int         dml_num_affected_rows = 0; //for autocommit dml return
     int64_t     batch_num_increase_rows = 0;//用于batch txn

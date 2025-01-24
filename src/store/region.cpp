@@ -674,6 +674,7 @@ void Region::exec_txn_query_primary_region(google::protobuf::RpcController* cont
                 _region_id, txn_id, log_id);
         response->set_errcode(pb::TXN_IS_EXISTING);
         txn_res->set_seq_id(txn->seq_id());
+        txn->update_max_seq_id(txn_info.seq_id());
         return;
     } else {
         int ret = _meta_writer->read_transcation_rollbacked_tag(_region_id, txn_id);
@@ -808,7 +809,7 @@ void Region::exec_in_txn_query(google::protobuf::RpcController* controller,
                     "region_id: %ld, txn_id: %lu, log_id:%lu op_type: %s",
                 remote_side, _region_id, txn_id, log_id, pb::OpType_Name(op_type).c_str());
             response->set_affected_rows(finish_affected_rows);
-            response->set_errcode(pb::SUCCESS);
+            response->set_errcode(pb::TXN_IS_ROLLBACK);
             return;
         }
         if (op_type == pb::OP_ROLLBACK) {
