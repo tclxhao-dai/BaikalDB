@@ -779,7 +779,7 @@ void Store::manual_split_region(google::protobuf::RpcController* controller,
         for (auto& region_id: region_ids) {
             SmartRegion region = get_region(region_id);
             // 分裂异步执行分裂
-            if (region->get_version() != 0) {
+            if (region != nullptr && region->get_version() != 0) {
                 std::string split_key;
                 int64_t split_key_term = 0;
                 if (0 != region->get_split_key(split_key, split_key_term)) {
