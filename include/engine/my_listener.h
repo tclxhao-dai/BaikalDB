@@ -16,8 +16,10 @@
 
 #include "rocksdb/listener.h"
 #include "rocks_wrapper.h"
+#include <bvar/bvar.h>
 
 namespace baikaldb {
+    static bvar::Adder<int64_t>rocksdb_compacting_files_count("rocksdb","compacting_files_count");
 class MyListener : public rocksdb::EventListener {
 public:
     virtual ~MyListener() {}
@@ -33,6 +35,12 @@ public:
     virtual void OnExternalFileIngested(rocksdb::DB* /*db*/, const rocksdb::ExternalFileIngestionInfo& info) {
         DB_WARNING("OnExternalFileIngested, cf:%s table_properties:%s", 
                 info.cf_name.c_str(), info.table_properties.ToString().c_str());
+    }
+    virtual void OnCompactionBegin(rocksdb::DB *, const rocksdb::CompactionJobInfo& info) {
+        rocksdb_compacting_files_count << info.input_files.size();
+    }
+    virtual void OnCompactionCompleted(rocksdb::DB*,const rocksdb::CompactionJobInfo& info){
+        rocksdb_compacting_files_count << -info.input_files.size();
     }
 };
 }
