@@ -916,6 +916,7 @@ ExprValue json_extract(const std::vector<ExprValue>& input) {
             results.emplace_back(buffer.GetString());
         }
     }
+
     ExprValue tmp(pb::STRING);
     if (results.empty()) {
         return ExprValue::Null();
