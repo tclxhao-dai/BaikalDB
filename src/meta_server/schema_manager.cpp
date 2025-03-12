@@ -743,6 +743,17 @@ int SchemaManager::pre_process_for_create_table(const pb::MetaManagerRequest* re
     if (!mutable_request->table_info().has_replica_num()) {
         mutable_request->mutable_table_info()->set_replica_num(FLAGS_region_replica_num);
     }
+    if (database_info.has_schema_conf()) {
+        if (!table_info.mutable_schema_conf()->has_need_merge() && database_info.schema_conf().has_need_merge()) {
+            table_info.mutable_schema_conf()->set_need_merge(database_info.schema_conf().need_merge());
+        }
+        if (!table_info.mutable_schema_conf()->has_storage_compute_separate() && database_info.schema_conf().has_storage_compute_separate()) {
+            table_info.mutable_schema_conf()->set_storage_compute_separate(database_info.schema_conf().storage_compute_separate());
+        }
+        if (!table_info.mutable_schema_conf()->has_select_index_by_cost() && database_info.schema_conf().has_select_index_by_cost()) {
+            table_info.mutable_schema_conf()->set_select_index_by_cost(database_info.schema_conf().select_index_by_cost());
+        }
+    }
     std::string resource_tag = request->table_info().resource_tag();
     boost::trim(resource_tag);
 

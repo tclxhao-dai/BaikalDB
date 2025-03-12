@@ -157,6 +157,9 @@ void DatabaseManager::modify_database(const pb::MetaManagerRequest& request, bra
     if (database_info.has_resource_tag()) {
         tmp_database_info.set_resource_tag(database_info.resource_tag());
     }
+    if (database_info.has_schema_conf()) {
+        tmp_database_info.mutable_schema_conf()->CopyFrom(database_info.schema_conf());
+    }
     if (database_info.has_engine()) {
         tmp_database_info.set_engine(database_info.engine());
     }

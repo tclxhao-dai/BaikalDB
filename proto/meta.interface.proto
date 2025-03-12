@@ -42,6 +42,7 @@ message DataBaseInfo {
     optional int64 region_split_lines      = 13; //region分裂行数阈值
     repeated ReplicaDist dists             = 14;
     optional string main_logical_room      = 15;
+    optional SchemaConf schema_conf        = 16; //建表时继承的配置
 };
 
 enum Status {
