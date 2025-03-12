@@ -63,7 +63,7 @@ void DatabaseManager::create_database(const pb::MetaManagerRequest& request, bra
         }  
         if (!database_info.has_region_split_lines() && namespace_info.has_region_split_lines()) {
             database_info.set_region_split_lines(namespace_info.region_split_lines());
-        }
+        } 
         if (database_info.dists().empty() && !namespace_info.dists().empty()) {
             database_info.mutable_dists()->CopyFrom(namespace_info.dists());
         }
@@ -209,6 +209,9 @@ void DatabaseManager::modify_database(const pb::MetaManagerRequest& request, bra
         if (database_info.has_resource_tag()) {
             tmp_database_info.set_resource_tag(database_info.resource_tag());
         }
+        if (database_info.has_schema_conf()) {
+            tmp_database_info.mutable_schema_conf()->CopyFrom(database_info.schema_conf());
+        }
         if (database_info.has_engine()) {
             tmp_database_info.set_engine(database_info.engine());
         }
@@ -238,6 +241,9 @@ void DatabaseManager::modify_database(const pb::MetaManagerRequest& request, bra
         }
         if (database_info.has_partition_info_str()) {
             tmp_database_info.set_partition_info_str(database_info.partition_info_str());
+        }
+        if (database_info.has_schema_conf()) {
+            tmp_database_info.mutable_schema_conf()->CopyFrom(database_info.schema_conf());
         }
     }
     tmp_database_info.set_version(_database_info_map[database_id].version() + 1);

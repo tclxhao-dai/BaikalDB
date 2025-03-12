@@ -46,7 +46,8 @@ message DataBaseInfo {
     optional string main_logical_room      = 15;
     repeated string learner_resource_tags  = 16;
     repeated BinlogInfo binlog_infos       = 17;
-    optional string partition_info_str     = 18; 
+    optional string partition_info_str     = 18;
+    optional SchemaConf schema_conf        = 19; //建表时继承的配置
 };
 
 enum Status {

@@ -887,15 +887,28 @@ int SchemaManager::pre_process_for_create_table(const pb::MetaManagerRequest* re
             }
         }
     }
-
+    if (database_info.has_schema_conf()) {
+        if (!table_info.mutable_schema_conf()->has_need_merge() && database_info.schema_conf().has_need_merge()) {
+            table_info.mutable_schema_conf()->set_need_merge(database_info.schema_conf().need_merge());
+        }
+        if (!table_info.mutable_schema_conf()->has_storage_compute_separate() && database_info.schema_conf().has_storage_compute_separate()) {
+            table_info.mutable_schema_conf()->set_storage_compute_separate(database_info.schema_conf().storage_compute_separate());
+        }
+        if (!table_info.mutable_schema_conf()->has_select_index_by_cost() && database_info.schema_conf().has_select_index_by_cost()) {
+            table_info.mutable_schema_conf()->set_select_index_by_cost(database_info.schema_conf().select_index_by_cost());
+        }
+    }
     //set default values if not specified by user
     if (!table_info_ptr->has_byte_size_per_record()) {
         DB_WARNING("no avg_row_length set in comments, use default:50");
         table_info_ptr->set_byte_size_per_record(50);
     }
 
-    // 目前建表新建region不考虑dist分布
-    table_info_ptr->set_resource_tag(resource_tag);
+    //set default values if not specified by user
+    if (!table_info_ptr->has_byte_size_per_record()) {
+        DB_WARNING("no avg_row_length set in comments, use default:50");
+        table_info_ptr->set_byte_size_per_record(50);
+    }
 
     // 非Rocksdb引擎限制ttl
     if (table_info.engine() != pb::ROCKSDB && table_info.engine() != pb::ROCKSDB_CSTORE) {
