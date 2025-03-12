@@ -809,23 +809,23 @@ ExprValue json_extract(const std::vector<ExprValue>& input) {
         doc.Parse<0>(json_str.c_str());
         if (doc.HasParseError()) {
             rapidjson::ParseErrorCode code = doc.GetParseError();
-            DB_WARNING("parse json_str error [code:%d][%s]", code, json_str.c_str());
+            // DB_WARNING("parse json_str error [code:%d][%s]", code, json_str.c_str());
             return ExprValue::Null();
         }
 
     } catch (...) {
-        DB_WARNING("parse json_str error [%s]", json_str.c_str());
+        // DB_WARNING("parse json_str error [%s]", json_str.c_str());
         return ExprValue::Null();
     }
     rapidjson::Pointer pointer(path.c_str());
     if (!pointer.IsValid()) {
-        DB_WARNING("invalid path: [%s]", path.c_str());
+        // DB_WARNING("invalid path: [%s]", path.c_str());
         return ExprValue::Null();
     }
 
     const rapidjson::Value *pValue = rapidjson::GetValueByPointer(doc, pointer);
     if (pValue == nullptr) {
-        DB_WARNING("the path: [%s] does not exist in doc [%s]", path.c_str(), json_str.c_str());
+        // DB_WARNING("the path: [%s] does not exist in doc [%s]", path.c_str(), json_str.c_str());
         return ExprValue::Null();
     }
     // TODO type on fly
@@ -876,23 +876,23 @@ ExprValue json_extract1(const std::vector<ExprValue>& input) {
         doc.Parse<0>(json_str.c_str());
         if (doc.HasParseError()) {
             rapidjson::ParseErrorCode code = doc.GetParseError();
-            DB_WARNING("parse json_str error [code:%d][%s]", code, json_str.c_str());
+            // DB_WARNING("parse json_str error [code:%d][%s]", code, json_str.c_str());
             return ExprValue::Null();
         }
 
     } catch (...) {
-        DB_WARNING("parse json_str error [%s]", json_str.c_str());
+        // DB_WARNING("parse json_str error [%s]", json_str.c_str());
         return ExprValue::Null();
     }
     rapidjson::Pointer pointer(path.c_str());
     if (!pointer.IsValid()) {
-        DB_WARNING("invalid path: [%s]", path.c_str());
+        // DB_WARNING("invalid path: [%s]", path.c_str());
         return ExprValue::Null();
     }
 
     const rapidjson::Value *pValue = rapidjson::GetValueByPointer(doc, pointer);
     if (pValue == nullptr) {
-        DB_WARNING("the path: [%s] does not exist in doc [%s]", path.c_str(), json_str.c_str());
+        // DB_WARNING("the path: [%s] does not exist in doc [%s]", path.c_str(), json_str.c_str());
         return ExprValue::Null();
     }
     rapidjson::StringBuffer buffer;
@@ -1530,7 +1530,7 @@ ExprValue dayofweek(const std::vector<ExprValue>& input) {
         tmp._u.uint32_val = today.day_of_week() + 1;
         return tmp;
     } catch (std::exception& e) {
-        DB_WARNING("date error:%s", e.what());
+        // DB_WARNING("date error:%s", e.what());
         return ExprValue::Null();
     }
 }
@@ -1636,7 +1636,7 @@ ExprValue dayofyear(const std::vector<ExprValue>& input) {
         tmp._u.uint32_val = today.day_of_year();
         return tmp;
     } catch (std::exception& e) {
-        DB_WARNING("date error:%s", e.what());
+        // DB_WARNING("date error:%s", e.what());
         return ExprValue::Null();
     }
 }
@@ -1666,7 +1666,7 @@ ExprValue weekday(const std::vector<ExprValue>& input) {
         }
         return tmp;
     } catch (std::exception& e) {
-        DB_WARNING("date error:%s", e.what());
+        // DB_WARNING("date error:%s", e.what());
         return ExprValue::Null();
     }
 }
@@ -1741,7 +1741,7 @@ int calc_week(const std::vector<ExprValue>& input, bool is_yearweek, int& year, 
         first_day = boost::gregorian::date(year, 1, 1);
         today = boost::gregorian::date(year, month, day);
     } catch (std::exception& e) {
-        DB_WARNING("date error:%s", e.what());
+        // DB_WARNING("date error:%s", e.what());
         return -1;
     }
     int day_of_year = today.day_of_year();
@@ -1840,7 +1840,7 @@ ExprValue weekofyear(const std::vector<ExprValue>& input) {
         tmp._u.uint32_val = week_number;
         return tmp;
     } catch (std::exception& e) {
-        DB_WARNING("date error:%s", e.what());
+        // DB_WARNING("date error:%s", e.what());
         return ExprValue::Null();
     }
 }
