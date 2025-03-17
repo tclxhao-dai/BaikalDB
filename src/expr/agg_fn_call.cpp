@@ -38,6 +38,7 @@ int AggFnCall::init(const pb::ExprNode& node) {
         {"multi_count_distinct", MULTI_COUNT_DISTINCT},
         {"multi_sum_distinct", MULTI_SUM_DISTINCT},
         {"multi_group_concat_distinct", MULTI_GROUP_CONCAT_DISTINCT},
+        {"multi_avg_distinct", MULTI_AVG_DISTINCT},
         {"min", MIN},
         {"max", MAX},
         {"hll_add_agg", HLL_ADD_AGG},
@@ -72,6 +73,7 @@ int AggFnCall::init(const pb::ExprNode& node) {
             _fn.name() == "group_concat_distinct" ||
             _fn.name() == "multi_count_distinct" ||
             _fn.name() == "multi_sum_distinct" ||
+            _fn.name() == "multi_avg_distinct" ||
             _fn.name() == "multi_group_concat_distinct") {
         _is_distinct = true;
     }
@@ -90,7 +92,8 @@ int AggFnCall::type_inferer() {
         case MULTI_COUNT_DISTINCT:
             _col_type = pb::INT64;
             return 0;
-        case AVG: 
+        case AVG:
+        case MULTI_AVG_DISTINCT:
             _col_type = pb::DOUBLE;
             return 0;
         case SUM:
@@ -212,6 +215,7 @@ int AggFnCall::open() {
         case MULTI_COUNT_DISTINCT:
         case MULTI_SUM_DISTINCT:
         case MULTI_GROUP_CONCAT_DISTINCT:
+        case MULTI_AVG_DISTINCT:
         case HLL_ADD_AGG:
         case HLL_MERGE_AGG:
         case RB_OR_AGG:
@@ -224,6 +228,7 @@ int AggFnCall::open() {
         case TDIGEST_AGG:
         case TDIGEST_BUILD_AGG: 
         case GROUP_CONCAT: {
+
             if (_children.size() == 0) {
                 DB_WARNING("_agg_type:%d , _children.size() == 0", _agg_type);
                 return -1;
@@ -244,6 +249,7 @@ int AggFnCall::open() {
             DB_WARNING("children_size %d less than 2", children_size);
             return -1;
         }
+
         if (_children[1]->is_literal()) {
             ExprValue value = _children[1]->get_value(nullptr);
             if (!value.is_null()) {
@@ -321,6 +327,7 @@ bool AggFnCall::is_initialize(const std::string& key, MemRow* dst) {
     if (_is_distinct 
             && _agg_type != MULTI_COUNT_DISTINCT 
             && _agg_type != MULTI_SUM_DISTINCT
+            && _agg_type != MULTI_AVG_DISTINCT
             && _agg_type != MULTI_GROUP_CONCAT_DISTINCT) {
         return false;
     }
@@ -349,6 +356,7 @@ bool AggFnCall::is_initialize(const std::string& key, MemRow* dst) {
         }
         case MULTI_COUNT_DISTINCT:
         case MULTI_SUM_DISTINCT:
+        case MULTI_AVG_DISTINCT:
         case MULTI_GROUP_CONCAT_DISTINCT: {
             ExprValue value(pb::STRING);
             if (dst->get_value(_tuple_id, _intermediate_slot_id).compare(value) == 0) {
@@ -407,6 +415,7 @@ int AggFnCall::initialize(const std::string& key, MemRow* dst, int64_t& used_siz
         }
         case MULTI_COUNT_DISTINCT:
         case MULTI_SUM_DISTINCT:
+        case MULTI_AVG_DISTINCT:
         case MULTI_GROUP_CONCAT_DISTINCT: {
             if (dst_val.is_null()) {
                 dst->set_value(_tuple_id, _intermediate_slot_id, ExprValue::Null());
@@ -543,13 +552,14 @@ int AggFnCall::update(const std::string& key, MemRow* src, MemRow* dst, int64_t&
         case MAX: {
             ExprValue value = _children[0]->get_value(src).cast_to(_col_type);
             if (!value.is_null()) {
-                ExprValue result = dst->get_value(_tuple_id, _intermediate_slot_id).cast_to(_col_type);
+                ExprValue result = dst->get_value(_tuple_id, _intermediate_slot_id);
                 if (result.is_null() || result.compare(value) < 0) {
                     dst->set_value(_tuple_id, _intermediate_slot_id, value);
                 }
             }
             return 0;
         }
+        case MULTI_AVG_DISTINCT:
         case MULTI_COUNT_DISTINCT:
         case MULTI_SUM_DISTINCT: {
             ExprValue value = _children[0]->get_value(src);
@@ -717,6 +727,7 @@ int AggFnCall::merge(const std::string& key, MemRow* src, MemRow* dst, int64_t& 
     if (_is_distinct 
         && _agg_type != MULTI_COUNT_DISTINCT 
         && _agg_type != MULTI_SUM_DISTINCT
+        && _agg_type != MULTI_AVG_DISTINCT
         && _agg_type != MULTI_GROUP_CONCAT_DISTINCT) {
         //distinct agg, 无merge概念
         //普通agg与distinct agg一起出现时，普通agg需要多计算一次，因此需要merge
@@ -755,6 +766,7 @@ int AggFnCall::merge(const std::string& key, MemRow* src, MemRow* dst, int64_t& 
         }
         if (_agg_type == MULTI_COUNT_DISTINCT 
                 || _agg_type == MULTI_SUM_DISTINCT 
+                || _agg_type == MULTI_AVG_DISTINCT 
                 || _agg_type == MULTI_GROUP_CONCAT_DISTINCT ) {
             if (!dst_value.is_null()) {
                 int64_t old_used_size = 0;
@@ -763,7 +775,7 @@ int AggFnCall::merge(const std::string& key, MemRow* src, MemRow* dst, int64_t& 
                 }        
                 ExprValueUniqSet tmp_set;
                 multi_distinct_unserialize(dst_value, tmp_set);
-                _multi_distinct_intermediate_val_map[key].merge(tmp_set);
+                _multi_distinct_intermediate_val_map[key].insert(tmp_set.begin(), tmp_set.end());
                 int64_t cur_used_size = 0;
                 for(auto val : _multi_distinct_intermediate_val_map[key]) {
                     cur_used_size += val.size();
@@ -819,6 +831,7 @@ int AggFnCall::merge(const std::string& key, MemRow* src, MemRow* dst, int64_t& 
         }
         case MULTI_COUNT_DISTINCT:
         case MULTI_SUM_DISTINCT:
+        case MULTI_AVG_DISTINCT:
         case MULTI_GROUP_CONCAT_DISTINCT: {
             ExprValue value = src->get_value(_tuple_id, _intermediate_slot_id);
             if (!value.is_null()) {
@@ -828,7 +841,7 @@ int AggFnCall::merge(const std::string& key, MemRow* src, MemRow* dst, int64_t& 
                 } 
                 ExprValueUniqSet tmp_set;
                 multi_distinct_unserialize(value, tmp_set);
-                _multi_distinct_intermediate_val_map[key].merge(tmp_set);
+                _multi_distinct_intermediate_val_map[key].insert(tmp_set.begin(), tmp_set.end());
                 int64_t cur_used_size = 0;
                 for(auto val : _multi_distinct_intermediate_val_map[key]) {
                     cur_used_size += val.size();
@@ -1000,6 +1013,7 @@ int AggFnCall::finalize(const std::string& key, MemRow* dst, bool is_merger) {
         }
         case MULTI_COUNT_DISTINCT:
         case MULTI_SUM_DISTINCT:
+        case MULTI_AVG_DISTINCT:
         case MULTI_GROUP_CONCAT_DISTINCT: {
             if (!is_merger) {
                 ExprValue result(pb::STRING);
@@ -1012,7 +1026,7 @@ int AggFnCall::finalize(const std::string& key, MemRow* dst, bool is_merger) {
                 if (!dst_value.is_null()) {
                     ExprValueUniqSet tmp_set;
                     multi_distinct_unserialize(dst_value, tmp_set);
-                    _multi_distinct_intermediate_val_map[key].merge(tmp_set);
+                    _multi_distinct_intermediate_val_map[key].insert(tmp_set.begin(), tmp_set.end());
                 }
                 ExprValue final_result(pb::INT64);
                 if (_agg_type == MULTI_COUNT_DISTINCT) {
@@ -1027,9 +1041,18 @@ int AggFnCall::finalize(const std::string& key, MemRow* dst, bool is_merger) {
                     for (auto value : _multi_distinct_intermediate_val_map[key]) {
                         final_result.add(value);
                     }
+                } else if (_agg_type == MULTI_AVG_DISTINCT) {
+                    final_result = ExprValue(pb::DOUBLE);
+                    ExprValue final_sum(pb::DOUBLE);
+                    int64_t set_count = _multi_distinct_intermediate_val_map[key].size();
+                    if (set_count != 0) {
+                        for(auto value : _multi_distinct_intermediate_val_map[key]) {
+                            final_sum.add(value);
+                        }
+                        final_result._u.double_val = final_sum._u.double_val / set_count;
+                    }
                 } else if (_agg_type == MULTI_GROUP_CONCAT_DISTINCT) {
                     final_result = ExprValue(pb::STRING);
-
                     bool is_asc = _is_asc.size() == 1 && _is_asc[0];
                     std::vector<std::string> value_list;
 

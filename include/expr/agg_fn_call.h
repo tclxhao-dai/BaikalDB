@@ -29,16 +29,15 @@ struct ExprValueHashHasher {
 };
 
 struct ExprValueComparator {
-	bool operator() (const ExprValue& lval, const ExprValue& rval) const noexcept {
+    bool operator() (const ExprValue& lval, const ExprValue& rval) const noexcept {
         if (0 == lval.compare(rval)) {
             return true;
         }
         return false;
-	} 
+    }
 };
 using ExprValueUniqSet = std::unordered_set<ExprValue, ExprValueHashHasher, ExprValueComparator>;
 
-   
 class AggFnCall : public ExprNode {
 public:
     enum AggType {
@@ -51,6 +50,7 @@ public:
         MULTI_COUNT_DISTINCT,
         MULTI_SUM_DISTINCT,
         MULTI_GROUP_CONCAT_DISTINCT,
+        MULTI_AVG_DISTINCT,
         HLL_ADD_AGG,
         HLL_MERGE_AGG,
         RB_OR_AGG,
@@ -139,7 +139,7 @@ public:
     }
     static void finalize_all(std::vector<AggFnCall*>& agg_calls, const std::string& key, MemRow* dst, bool is_merger) {
         for (auto call : agg_calls) {
-            call->finalize(key, dst, is_merger);
+            call->finalize(key, dst, is_merger); 
         }
     }
     bool is_bitmap_agg() const {
