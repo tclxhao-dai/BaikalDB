@@ -1962,7 +1962,7 @@ std::vector<pb::SlotDescriptor>& LogicalPlanner::get_agg_func_slot(
     }
     static std::unordered_set<std::string> need_intermediate_slot_agg = {
         "avg", "rb_or_cardinality_agg", "rb_and_cardinality_agg", "rb_xor_cardinality_agg", "multi_count_distinct", "multi_sum_distinct",
-        "multi_group_concat_distinct"
+        "multi_group_concat_distinct", "multi_avg_distinct"
     };
     std::vector<pb::SlotDescriptor>* slots = nullptr;
     auto iter = _agg_slot_mapping.find(agg);
@@ -2000,6 +2000,7 @@ int LogicalPlanner::create_agg_expr(const parser::FuncExpr* expr_item, pb::Expr&
     bool new_slot = true;
 
     std::string fn_name = expr_item->fn_name.to_lower();
+
     if (_need_multi_distinct && expr_item->distinct) {
         if (expr_item->fn_name.to_lower() == "count") {
             fn_name = "multi_count_distinct";
@@ -2007,6 +2008,8 @@ int LogicalPlanner::create_agg_expr(const parser::FuncExpr* expr_item, pb::Expr&
             fn_name = "multi_sum_distinct";
         } else if (expr_item->fn_name.to_lower() == "group_concat") {
             fn_name = "multi_group_concat_distinct";
+        } else if (expr_item->fn_name.to_lower() == "avg") {
+            fn_name = "multi_avg_distinct";
         }
     }
     auto& slots = get_agg_func_slot(
@@ -2053,7 +2056,7 @@ int LogicalPlanner::create_agg_expr(const parser::FuncExpr* expr_item, pb::Expr&
     // min max无需distinct
     if (expr_item->distinct && func->name() != "max" && func->name() != "min"
         && func->name() != "multi_count_distinct" && func->name() != "multi_sum_distinct"
-        && func->name() != "multi_group_concat_distinct") {
+        && func->name() != "multi_group_concat_distinct" && func->name() != "multi_avg_distinct") {
         func->set_name(func->name() + "_distinct");
     }
     node->set_num_children(expr_item->children.size());

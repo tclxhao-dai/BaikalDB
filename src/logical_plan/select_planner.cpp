@@ -609,7 +609,8 @@ int SelectPlanner::create_agg_node() {
                 }
             } else if (distinct_func.nodes(0).fn().name() == "multi_count_distinct"
                     || distinct_func.nodes(0).fn().name() == "multi_sum_distinct"
-                    || distinct_func.nodes(0).fn().name() == "multi_group_concat_distinct") {
+                    || distinct_func.nodes(0).fn().name() == "multi_group_concat_distinct"
+                    || distinct_func.nodes(0).fn().name() == "multi_avg_distinct") {
                 pb::Expr* expr = agg2->add_agg_funcs();
                 expr->CopyFrom(distinct_func);
             }
@@ -1314,7 +1315,8 @@ void SelectPlanner::check_multi_distinct_in_node(const parser::ExprNode* item,
     if (item->expr_type == parser::ET_FUNC) {
         parser::FuncExpr* func = (parser::FuncExpr*) item;
         if (func->distinct == true && 
-                (func->fn_name.to_lower() == "sum" || func->fn_name.to_lower() == "count")) {
+                (func->fn_name.to_lower() == "sum" || func->fn_name.to_lower() == "count" 
+                || func->fn_name.to_lower() == "avg")) {
             multi_distinct_cnt ++;
             if (func->children.size() > 1) {
                 multi_col_single_child = true;
