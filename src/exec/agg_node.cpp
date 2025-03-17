@@ -260,7 +260,7 @@ int AggNode::get_next(RuntimeState* state, RowBatch* batch, bool* eos) {
         if (batch->is_full()) {
             return 0;
         }
-        AggFnCall::finalize_all(_agg_fn_calls, _iter->first, _iter->second);
+        AggFnCall::finalize_all(_agg_fn_calls, _iter->first, _iter->second, _is_merger);
         batch->move_row(std::move(std::unique_ptr<MemRow>(_iter->second)));
         _num_rows_returned++;
         _iter->second = nullptr;

@@ -82,7 +82,20 @@ private:
 
     // for base subscribe
     int get_base_subscribe_scan_ref_slot();
-    
+    int check_multi_distinct(); 
+    void check_multi_distinct_in_select(int& multi_distinct_cnt, 
+                                    bool& multi_col_single_child,
+                                    std::set<std::string>& name_set);
+    void check_multi_distinct_in_having(int& multi_distinct_cnt, 
+                                    bool& multi_col_single_child,
+                                    std::set<std::string>& name_set);
+    void check_multi_distinct_in_orderby(int& multi_distinct_cnt, 
+                                    bool& multi_col_single_child,
+                                    std::set<std::string>& name_set);
+    void check_multi_distinct_in_node(const parser::ExprNode* item, 
+                                    int& multi_distinct_cnt, 
+                                    bool& multi_col_single_child,
+                                    std::set<std::string>& name_set);
 private:
     parser::SelectStmt*                 _select;
 

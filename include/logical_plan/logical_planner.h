@@ -343,5 +343,6 @@ protected:
     // 同一层级的操作表集合，e.g:join的左右表
     std::vector<std::string>       _current_tables;
     std::vector<std::string>       _partition_names;
+    bool                        _need_multi_distinct = false;
 };
 } //namespace baikal

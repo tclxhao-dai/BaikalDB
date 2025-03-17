@@ -1348,7 +1348,8 @@ std::vector<pb::SlotDescriptor>& LogicalPlanner::get_agg_func_slot(
         _ctx->current_table_tuple_ids.emplace(_agg_tuple_id);
     }
     static std::unordered_set<std::string> need_intermediate_slot_agg = {
-        "avg", "rb_or_cardinality_agg", "rb_and_cardinality_agg", "rb_xor_cardinality_agg"
+        "avg", "rb_or_cardinality_agg", "rb_and_cardinality_agg", "rb_xor_cardinality_agg", "multi_count_distinct", "multi_sum_distinct",
+        "multi_group_concat_distinct", "multi_avg_distinct"
     };
     std::vector<pb::SlotDescriptor>* slots = nullptr;
     auto iter = _agg_slot_mapping.find(agg);
@@ -1384,8 +1385,22 @@ int LogicalPlanner::create_agg_expr(const parser::FuncExpr* expr_item, pb::Expr&
         return -1;
     }
     bool new_slot = true;
+
+    std::string fn_name = expr_item->fn_name.to_lower();
+
+    if (_need_multi_distinct && expr_item->distinct) {
+        if (expr_item->fn_name.to_lower() == "count") {
+            fn_name = "multi_count_distinct";
+        } else if (expr_item->fn_name.to_lower() == "sum") {
+            fn_name = "multi_sum_distinct";
+        } else if (expr_item->fn_name.to_lower() == "group_concat") {
+            fn_name = "multi_group_concat_distinct";
+        } else if (expr_item->fn_name.to_lower() == "avg") {
+            fn_name = "multi_avg_distinct";
+        }
+    }
     auto& slots = get_agg_func_slot(
-            expr_item->to_string(), expr_item->fn_name.to_lower(), new_slot);
+            expr_item->to_string(), fn_name, new_slot);
     if (slots.size() < 1) {
         DB_WARNING("wrong number of agg slots");
         return -1;
@@ -1397,7 +1412,7 @@ int LogicalPlanner::create_agg_expr(const parser::FuncExpr* expr_item, pb::Expr&
     node->set_node_type(pb::AGG_EXPR);
     node->set_col_type(pb::INVALID_TYPE);
     pb::Function* func = node->mutable_fn();
-    func->set_name(expr_item->fn_name.to_lower());
+    func->set_name(fn_name);
     func->set_fn_op(expr_item->func_type);
     func->set_has_var_args(false);
 
@@ -1426,7 +1441,9 @@ int LogicalPlanner::create_agg_expr(const parser::FuncExpr* expr_item, pb::Expr&
         func->set_name(func->name() + "_star");
     }
     // min max无需distinct
-    if (expr_item->distinct && func->name() != "max" && func->name() != "min") {
+    if (expr_item->distinct && func->name() != "max" && func->name() != "min"
+        && func->name() != "multi_count_distinct" && func->name() != "multi_sum_distinct"
+        && func->name() != "multi_group_concat_distinct" && func->name() != "multi_avg_distinct") {
         func->set_name(func->name() + "_distinct");
     }
     node->set_num_children(expr_item->children.size());

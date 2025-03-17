@@ -35,6 +35,9 @@ int SelectPlanner::plan() {
         _ctx->get_runtime_state()->set_single_sql_autocommit(false);
     }
     _select = (parser::SelectStmt*)_ctx->stmt;
+    if (0 != check_multi_distinct()) {
+        return -1;
+    }
     if (_select->table_refs == nullptr) {
         if (0 != parse_select_fields()) {
             return -1;        
@@ -586,12 +589,18 @@ int SelectPlanner::create_agg_node() {
                     pb::Expr* expr = agg2->add_group_exprs();
                     ExprNode::get_pb_expr(distinct_func, &expr_idx, expr);
                 }
-            } else {
+            } else if (!_need_multi_distinct) {
                 int expr_idx = 1;
                 while (expr_idx < distinct_func.nodes_size()) {
                     pb::Expr* expr = agg2->add_group_exprs();
                     ExprNode::get_pb_expr(distinct_func, &expr_idx, expr);
                 }
+            } else if (distinct_func.nodes(0).fn().name() == "multi_count_distinct"
+                    || distinct_func.nodes(0).fn().name() == "multi_sum_distinct"
+                    || distinct_func.nodes(0).fn().name() == "multi_group_concat_distinct"
+                    || distinct_func.nodes(0).fn().name() == "multi_avg_distinct") {
+                pb::Expr* expr = agg2->add_agg_funcs();
+                expr->CopyFrom(distinct_func);
             }
         }
 
@@ -908,6 +917,132 @@ int SelectPlanner::get_base_subscribe_scan_ref_slot() {
         }
     }
     return 0;
+}
+
+int SelectPlanner::check_multi_distinct() {
+    int multi_distinct_cnt = 0;
+    bool multi_col_single_child = false;
+    std::set<std::string> name_set;
+    check_multi_distinct_in_select(multi_distinct_cnt, 
+                                multi_col_single_child,
+                                name_set);
+    check_multi_distinct_in_having(multi_distinct_cnt, 
+                                multi_col_single_child,
+                                name_set);
+    check_multi_distinct_in_orderby(multi_distinct_cnt, 
+                                multi_col_single_child,
+                                name_set);
+    if (multi_distinct_cnt > 1) {
+        if (multi_col_single_child) {
+            _ctx->stat_info.error_msg << "The query contains multi count/sum/group_concat distinct, each can't have multi columns.";
+            return -1;
+        }
+        if (name_set.size() > 1) {
+            _need_multi_distinct = true;
+        }
+    }
+    return 0;
+}
+
+void SelectPlanner::check_multi_distinct_in_select(int& multi_distinct_cnt, 
+                                                    bool& multi_col_single_child,
+                                                    std::set<std::string>& name_set) {
+    for (int idx = 0; idx < _select->fields.size(); ++idx) {
+        const parser::ExprNode* expr_item = _select->fields[idx]->expr;
+        check_multi_distinct_in_node(expr_item,
+                            multi_distinct_cnt,
+                            multi_col_single_child,
+                            name_set);
+    }
+}
+
+void SelectPlanner::check_multi_distinct_in_having(int& multi_distinct_cnt, 
+                                                    bool& multi_col_single_child,
+                                                    std::set<std::string>& name_set) {
+    if (_select->having == nullptr) {
+        return;
+    }
+    check_multi_distinct_in_node(_select->having,
+                            multi_distinct_cnt,
+                            multi_col_single_child,
+                            name_set);
+}
+
+void SelectPlanner::check_multi_distinct_in_orderby(int& multi_distinct_cnt, 
+                                                    bool& multi_col_single_child,
+                                                    std::set<std::string>& name_set) {
+    if (_select->order == nullptr) {
+        return;
+    }
+    parser::Vector<parser::ByItem*> order_items = _select->order->items;
+    for (int idx = 0; idx < order_items.size(); ++idx) {
+        check_multi_distinct_in_node(order_items[idx]->expr,
+                            multi_distinct_cnt,
+                            multi_col_single_child,
+                            name_set);
+    }
+}
+
+void SelectPlanner::check_multi_distinct_in_node(const parser::ExprNode* item, 
+                                                    int& multi_distinct_cnt, 
+                                                    bool& multi_col_single_child,
+                                                    std::set<std::string>& name_set) {
+    if (item == nullptr) {
+        return;
+    }
+    for (int i = 0; i < item->children.size(); i++) {
+        const parser::ExprNode* expr_item = (const parser::ExprNode*) item->children[i];
+        check_multi_distinct_in_node(expr_item, multi_distinct_cnt, multi_col_single_child, name_set);
+    }
+    if (item->expr_type == parser::ET_FUNC) {
+        parser::FuncExpr* func = (parser::FuncExpr*) item;
+        if (func->distinct == true && 
+                (func->fn_name.to_lower() == "sum" || func->fn_name.to_lower() == "count" 
+                || func->fn_name.to_lower() == "avg")) {
+            multi_distinct_cnt ++;
+            if (func->children.size() > 1) {
+                multi_col_single_child = true;
+            }
+            if (func->children.size() == 1) {
+                const parser::ExprNode* expr_item = (const parser::ExprNode*) func->children[0];
+                std::ostringstream os;
+                expr_item->to_stream(os);
+                name_set.insert(os.str());
+            }
+        } else if (func->distinct == true && func->fn_name.to_lower() == "group_concat") {
+            multi_distinct_cnt ++;
+            if (func->children.size() == 2) {
+                const parser::ExprNode* expr_item = (const parser::ExprNode*) func->children[0];
+                if (expr_item->children.size() != 1) {
+                    multi_col_single_child = true;
+                    return;
+                }
+            }
+            if (func->children.size() == 4) {
+                const parser::ExprNode* expr_item1 = (const parser::ExprNode*) func->children[0];
+                const parser::ExprNode* expr_item2 = (const parser::ExprNode*) func->children[2];
+                // 不允许多列 group_concat(distinct col1,col2 order by col2)
+                // 不允许多列 group_concat(distinct col1 order by col1, col2)
+                if (expr_item1->children.size() != expr_item2->children.size()) {
+                    multi_col_single_child = true;
+                    return;
+                }
+
+                // 不允许多列 group_concat(distinct col1 order by col2)
+                std::ostringstream os1;
+                expr_item1->to_stream(os1);
+                std::ostringstream os2;
+                expr_item2->to_stream(os2);
+                if (os1.str() != os2.str()) {
+                    multi_col_single_child = true;
+                    return;
+                }
+            }
+            std::ostringstream os;
+            func->to_stream(os);
+            name_set.insert(os.str());
+        }
+    }
 }
 
 // pb::SlotDescriptor& SelectPlanner::_get_group_expr_slot() {

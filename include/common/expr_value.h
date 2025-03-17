@@ -402,6 +402,55 @@ struct ExprValue {
         }
     }
 
+
+    template <class T>
+    int set_numeric(T val) {
+        float_precision_len = 0;
+        switch (type) {
+            case pb::BOOL:   
+                _u.bool_val = val;
+                break;
+            case pb::INT8:   
+                _u.int8_val = val;
+                break;
+            case pb::INT16:  
+                _u.int16_val = val;
+                break;
+            case pb::INT32:
+            case pb::TIME:
+                _u.int32_val = val;
+                break;
+            case pb::INT64:
+                _u.int64_val = val;
+                break;
+            case pb::UINT8:
+                _u.uint8_val = val;
+                break;
+            case pb::UINT16:
+                _u.uint16_val = val;
+                break;
+            case pb::UINT32:
+            case pb::TIMESTAMP:
+            case pb::DATE:
+                _u.uint32_val = val;
+                break;
+            case pb::UINT64:
+            case pb::DATETIME:
+                _u.uint64_val = val;
+                break;
+            case pb::FLOAT:
+                _u.float_val = val;
+                break;
+            case pb::DOUBLE:
+                _u.double_val = val;
+                break;
+            default:
+                DB_WARNING("not numeirc type");
+                return -1;
+        }
+        return 0;
+    }
+
     int64_t size() const {
         switch (type) {
             case pb::BOOL:
