@@ -84,6 +84,7 @@ DEFINE_int32(zstd_max_train_bytes, 256 * 1024, "default 256K");
 DEFINE_bool(olap_import_mode, false, "is olap import, default: false");
 DEFINE_bool(rocks_enable_blob_files, false, "rocksdb enable_blob_files, default: false");
 DEFINE_uint64(rocks_min_blob_size, 4096, "rocksdb min_blob_size, default: 4096");
+DEFINE_bool(rocks_checksum_type_use_old, true, "rocksdb checksum_type use kCRC32c");
 
 const std::string RocksWrapper::RAFT_LOG_CF = "raft_log";
 const std::string RocksWrapper::BIN_LOG_CF  = "bin_log_new";
@@ -107,6 +108,7 @@ int32_t RocksWrapper::init(const std::string& path) {
     }
     std::shared_ptr<rocksdb::EventListener> my_listener = std::make_shared<MyListener>();
     rocksdb::BlockBasedTableOptions table_options;
+    rocksdb::BlockBasedTableOptions other_table_options;
     if (FLAGS_rocks_use_partitioned_index_filters) {
         // use Partitioned Index Filters
         // https://github.com/facebook/rocksdb/wiki/Partitioned-Index-Filters
@@ -145,6 +147,11 @@ int32_t RocksWrapper::init(const std::string& path) {
     if (FLAGS_olap_table_only) {
         // olap集群关闭bloomfilter
         table_options.filter_policy = nullptr;
+    }
+    //support downgrade from rocksdb 7.10 to 6.26
+    if (FLAGS_rocks_checksum_type_use_old) {
+        table_options.checksum = rocksdb::kCRC32c;
+        other_table_options.checksum = rocksdb::kCRC32c;
     }
     _cache = table_options.block_cache.get();
     rocksdb::Options db_options;
@@ -295,6 +302,7 @@ int32_t RocksWrapper::init(const std::string& path) {
     _meta_info_option.compaction_pri = rocksdb::kOldestSmallestSeqFirst;
     _meta_info_option.level_compaction_dynamic_level_bytes = FLAGS_rocks_data_dynamic_level_bytes;
     _meta_info_option.max_write_buffer_number_to_maintain = _meta_info_option.max_write_buffer_number;
+    _meta_info_option.table_factory.reset(NewBlockBasedTableFactory(other_table_options));
     if (FLAGS_olap_import_mode) {
         _log_cf_option.max_write_buffer_number_to_maintain = 0;
         _log_cf_option.min_write_buffer_number_to_merge = 1;
@@ -504,6 +512,9 @@ int32_t RocksWrapper::init_cold_rocksdb(const std::string& path) {
         return 0;
     }
     rocksdb::BlockBasedTableOptions table_options;
+    if (FLAGS_rocks_checksum_type_use_old) {
+        table_options.checksum = rocksdb::kCRC32c;
+    }
     table_options.data_block_index_type = rocksdb::BlockBasedTableOptions::kDataBlockBinaryAndHash;
     table_options.block_cache = rocksdb::NewLRUCache(FLAGS_rocks_block_cache_size_mb * 1024 * 1024LL, 8);
     table_options.block_size = FLAGS_cold_sst_block_size;
