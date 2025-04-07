@@ -1100,6 +1100,9 @@ private:
                                 const std::string& database,
                                 const std::string& table_name);
 
+    void send_link_binlog_request(const pb::SchemaInfo& schema_info,
+                                  const google::protobuf::RepeatedPtrField<pb::BinlogInfo>& binlog_infos);
+
     int check_table_exist(const pb::SchemaInfo& schema_info,
                             int64_t& namespace_id,
                             int64_t& database_id,

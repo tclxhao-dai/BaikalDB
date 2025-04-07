@@ -21,9 +21,11 @@ message NameSpaceInfo {
     optional int64 byte_size_per_record    = 9;
     optional int64 replica_num             = 10;
     optional int64 region_split_lines      = 11; //region分裂行数阈值
-    repeated ReplicaDist dists             = 12;
     optional bool  if_exist                = 13;
-    optional string main_logical_room      = 14;
+    repeated ReplicaDist dists             = 14;
+    optional string main_logical_room      = 15;
+    repeated string learner_resource_tags  = 16;
+    repeated BinlogInfo binlog_infos       = 17;
 };
 
 message DataBaseInfo {
@@ -42,7 +44,10 @@ message DataBaseInfo {
     optional int64 region_split_lines      = 13; //region分裂行数阈值
     repeated ReplicaDist dists             = 14;
     optional string main_logical_room      = 15;
-    optional SchemaConf schema_conf        = 16; //建表时继承的配置
+    repeated string learner_resource_tags  = 16;
+    repeated BinlogInfo binlog_infos       = 17;
+    optional string partition_info_str     = 18;
+    optional SchemaConf schema_conf        = 19; //建表时继承的配置
 };
 
 enum Status {
@@ -94,6 +99,8 @@ message BinlogInfo {
     optional int64 binlog_table_id = 2; // binlog表自己不设置
     optional FieldInfo link_field  = 3;
     optional bool partition_is_same_hint = 4; // 普通表和binlog表分区方式不一样的hit
+    optional string database = 5;
+    optional string table_name = 6;
 };
 /*
     普通表    binlog表
@@ -518,6 +525,8 @@ message MetaManagerRequest {
     optional RecoverOpt          recover_opt            = 25;
     optional IndexDdlRequest     index_ddl_request      = 26;
     optional int64               learner_replica_num    = 27;
+    optional bool                is_dynamic_change      = 28; // 标识是否为动态分区变更
+    optional bool                is_force_setting       = 29; // 标识是否为强制设置，用于删除默认配置
 };
 
 message CreateTableResponse {

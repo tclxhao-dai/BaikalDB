@@ -63,6 +63,18 @@ void DatabaseManager::create_database(const pb::MetaManagerRequest& request, bra
         if (!database_info.has_region_split_lines() && namespace_info.has_region_split_lines()) {
             database_info.set_region_split_lines(namespace_info.region_split_lines());
         } 
+        if (database_info.dists().empty() && !namespace_info.dists().empty()) {
+            database_info.mutable_dists()->CopyFrom(namespace_info.dists());
+        }
+        if (!database_info.has_main_logical_room() && namespace_info.has_main_logical_room()) {
+            database_info.set_main_logical_room(namespace_info.main_logical_room());
+        }
+        if (database_info.learner_resource_tags().empty() && !namespace_info.learner_resource_tags().empty()) {
+            database_info.mutable_learner_resource_tags()->CopyFrom(namespace_info.learner_resource_tags());
+        }
+        if (database_info.binlog_infos().empty() && !namespace_info.binlog_infos().empty()) {
+            database_info.mutable_binlog_infos()->CopyFrom(namespace_info.binlog_infos());
+        }
     }
     database_info.set_version(1);
     
@@ -150,37 +162,56 @@ void DatabaseManager::modify_database(const pb::MetaManagerRequest& request, bra
     int64_t database_id = _database_id_map[database_name];
     
     pb::DataBaseInfo tmp_database_info = _database_info_map[database_id];
+    if (request.is_force_setting()) {
+        // 用于删除某个配置项的场景，删除时需要配置其他全部配置项
+        tmp_database_info = database_info;
+        tmp_database_info.set_database_id(database_id);
+        tmp_database_info.set_namespace_id(namespace_id);
+    } else {
+        if (database_info.has_quota()) {
+            tmp_database_info.set_quota(database_info.quota());
+        }
+        if (database_info.has_resource_tag()) {
+            tmp_database_info.set_resource_tag(database_info.resource_tag());
+        }
+        if (database_info.has_schema_conf()) {
+            tmp_database_info.mutable_schema_conf()->CopyFrom(database_info.schema_conf());
+        }
+        if (database_info.has_engine()) {
+            tmp_database_info.set_engine(database_info.engine());
+        }
+        if (database_info.has_charset()) {
+            tmp_database_info.set_charset(database_info.charset());
+        }
+        if (database_info.has_byte_size_per_record()) {
+            tmp_database_info.set_byte_size_per_record(database_info.byte_size_per_record());
+        }
+        if (database_info.has_replica_num()) {
+            tmp_database_info.set_replica_num(database_info.replica_num());
+        }
+        if (database_info.has_region_split_lines()) {
+            tmp_database_info.set_region_split_lines(database_info.region_split_lines());
+        }
+        if (database_info.dists_size() > 0) {
+            tmp_database_info.mutable_dists()->Swap(const_cast<pb::DataBaseInfo&>(database_info).mutable_dists());
+        }
+        if (database_info.has_main_logical_room() > 0) {
+            tmp_database_info.set_main_logical_room(database_info.main_logical_room());
+        }
+        if (!database_info.learner_resource_tags().empty()) {
+            tmp_database_info.mutable_learner_resource_tags()->CopyFrom(database_info.learner_resource_tags());
+        }
+        if (!database_info.binlog_infos().empty()) {
+            tmp_database_info.mutable_binlog_infos()->CopyFrom(database_info.binlog_infos());
+        }
+        if (database_info.has_partition_info_str()) {
+            tmp_database_info.set_partition_info_str(database_info.partition_info_str());
+        }
+        if (database_info.has_schema_conf()) {
+            tmp_database_info.mutable_schema_conf()->CopyFrom(database_info.schema_conf());
+        }
+    }
     tmp_database_info.set_version(tmp_database_info.version() + 1);
-    if (database_info.has_quota()) {
-        tmp_database_info.set_quota(database_info.quota());
-    }
-    if (database_info.has_resource_tag()) {
-        tmp_database_info.set_resource_tag(database_info.resource_tag());
-    }
-    if (database_info.has_schema_conf()) {
-        tmp_database_info.mutable_schema_conf()->CopyFrom(database_info.schema_conf());
-    }
-    if (database_info.has_engine()) {
-        tmp_database_info.set_engine(database_info.engine());
-    }
-    if (database_info.has_charset()) {
-        tmp_database_info.set_charset(database_info.charset());
-    }
-    if (database_info.has_byte_size_per_record()) {
-        tmp_database_info.set_byte_size_per_record(database_info.byte_size_per_record());
-    }
-    if (database_info.has_replica_num()) {
-        tmp_database_info.set_replica_num(database_info.replica_num());
-    }
-    if (database_info.has_region_split_lines()) {
-        tmp_database_info.set_region_split_lines(database_info.region_split_lines());
-    }
-    if (database_info.dists_size() > 0) {
-        tmp_database_info.mutable_dists()->Swap(const_cast<pb::DataBaseInfo&>(database_info).mutable_dists());
-    }
-    if (database_info.has_main_logical_room() > 0) {
-        tmp_database_info.set_main_logical_room(database_info.main_logical_room());
-    }
     std::string database_value;
     if (!tmp_database_info.SerializeToString(&database_value)) {
         DB_WARNING("request serializeToArray fail, request:%s",request.ShortDebugString().c_str());

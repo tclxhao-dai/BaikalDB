@@ -732,17 +732,7 @@ int SchemaManager::pre_process_for_create_table(const pb::MetaManagerRequest* re
 
     #undef SET_REQUEST_TABLE_INFO
     }
-    if (table_info.dists_size() == 0) {
-        if (database_info.dists_size() > 0) {
-            table_info_ptr->mutable_dists()->Swap(database_info.mutable_dists());
 
-        } else if (namespace_info.dists_size() > 0) {
-            table_info_ptr->mutable_dists()->Swap(namespace_info.mutable_dists());
-        }
-    }
-    if (!mutable_request->table_info().has_replica_num()) {
-        mutable_request->mutable_table_info()->set_replica_num(FLAGS_region_replica_num);
-    }
     if (database_info.has_schema_conf()) {
         if (!table_info.mutable_schema_conf()->has_need_merge() && database_info.schema_conf().has_need_merge()) {
             table_info.mutable_schema_conf()->set_need_merge(database_info.schema_conf().need_merge());
@@ -756,6 +746,11 @@ int SchemaManager::pre_process_for_create_table(const pb::MetaManagerRequest* re
     }
     std::string resource_tag = request->table_info().resource_tag();
     boost::trim(resource_tag);
+    //set default values if not specified by user
+    if (!table_info_ptr->has_byte_size_per_record()) {
+        DB_WARNING("no avg_row_length set in comments, use default:50");
+        table_info_ptr->set_byte_size_per_record(50);
+    }
 
     // 目前建表新建region不考虑dist分布
     table_info_ptr->set_resource_tag(resource_tag);

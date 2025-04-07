@@ -171,6 +171,7 @@ void TableManager::update_table_internal(const pb::MetaManagerRequest& request, 
 
 void TableManager::create_table(const pb::MetaManagerRequest& request, const int64_t apply_index, braft::Closure* done) {
     auto& table_info = const_cast<pb::SchemaInfo&>(request.table_info());
+    const auto binlog_infos = table_info.binlog_infos();
     table_info.set_timestamp(time(NULL));
     table_info.set_version(1);
     
@@ -387,6 +388,7 @@ void TableManager::create_table(const pb::MetaManagerRequest& request, const int
         _table_scheduling_infos.Modify(call_func, table_mem.main_table_id);
     }
     if (done) {
+        send_link_binlog_request(table_info, binlog_infos);
         ((MetaServerClosure*)done)->whether_level_table = table_mem.whether_level_table;
         ((MetaServerClosure*)done)->create_table_ret = ret;
     }
@@ -3186,6 +3188,54 @@ void TableManager::drop_index(const pb::MetaManagerRequest& request, const int64
         IF_DONE_SET_RESPONSE(done, pb::INPUT_PARAM_ERROR, "index not found");
         DB_WARNING("DDL_LOG drop_index can't find index [%s].", index_req.index_name().c_str());
     }
+}
+
+void TableManager::send_link_binlog_request(const pb::SchemaInfo& schema_info,
+        const google::protobuf::RepeatedPtrField<pb::BinlogInfo>& binlog_infos) {
+    if (binlog_infos.empty()) {
+        return;
+    }
+    Bthread bth(&BTHREAD_ATTR_SMALL);
+    auto link_binlog_func = [this, schema_info, binlog_infos] () {
+        MetaServerInteract meta_server_interact;
+        if (meta_server_interact.init() != 0) {
+            DB_FATAL("meta server interact init fail when link binlog");
+            return;
+        }
+        for (const auto& binlog_info : binlog_infos) {
+            pb::MetaManagerRequest request;
+            request.set_op_type(pb::OP_LINK_BINLOG);
+            pb::SchemaInfo* table_info = request.mutable_table_info();
+            table_info->set_namespace_name(schema_info.namespace_name());
+            table_info->set_database(schema_info.database());
+            table_info->set_table_name(schema_info.table_name());
+            if (binlog_info.has_link_field()) {
+                table_info->mutable_link_field()->CopyFrom(binlog_info.link_field());
+            }
+            if (binlog_info.has_partition_is_same_hint()) {
+                table_info->set_partition_is_same_hint(binlog_info.partition_is_same_hint());
+            }
+            auto* request_binlog_info = request.mutable_binlog_info();
+            request_binlog_info->set_namespace_name(schema_info.namespace_name()); // 使用主表的namespace
+            request_binlog_info->set_database(binlog_info.database());
+            request_binlog_info->set_table_name(binlog_info.table_name());
+            pb::MetaManagerResponse response;
+            if (meta_server_interact.send_request("meta_manager", request, response) != 0) {
+                // 失败报警
+                DB_FATAL("link binlog fail, request: %s, response:%s",
+                        request.ShortDebugString().c_str(), response.ShortDebugString().c_str());
+                continue;
+            }
+            if (response.errcode() != pb::SUCCESS) {
+                // 失败报警
+                DB_FATAL("link binlog fail, request: %s, response:%s",
+                        request.ShortDebugString().c_str(), response.ShortDebugString().c_str());
+                continue;
+            }
+            DB_WARNING("link binlog success, request: %s", request.ShortDebugString().c_str());
+        }
+    };
+    bth.run(link_binlog_func);
 }
 
 void TableManager::add_index(const pb::MetaManagerRequest& request, 
