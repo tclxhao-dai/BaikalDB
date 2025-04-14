@@ -1461,6 +1461,11 @@ void TableManager::modify_field(const pb::MetaManagerRequest& request,
                     add_field_id_map[field.new_field_name()] = field_id;
                     drop_field_names.push_back(field.field_name());
                 }
+                if (field.has_generate_info()) {
+                    mem_field.mutable_generate_info()->CopyFrom(field.generate_info());
+                } else {
+                    mem_field.clear_generate_info();
+                }
             }
         }
     }

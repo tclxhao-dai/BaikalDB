@@ -781,7 +781,11 @@ bool ShowHelper::_show_create_table(const SmartSocket& client, const std::vector
         oss << "  " << "`" << field.short_name << "` ";
         oss << to_mysql_type_full_string(field.type, field.float_total_len, field.float_precision_len);
         oss << " ";
-        oss << (field.can_null ? "NULL " : "NOT NULL ");
+        if (field.is_generated) {
+            oss << "as " << field.generate_str << " ";
+        } else {
+            oss << (field.can_null ? "NULL " : "NOT NULL ");
+        }
         if (!field.default_expr_value.is_null()) {
             oss << "DEFAULT ";
             if (field.default_value == "(current_timestamp())") {

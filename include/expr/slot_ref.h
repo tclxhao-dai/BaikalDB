@@ -14,6 +14,7 @@
 
 #pragma once
 #include "expr_node.h"
+#include "table_record.h"
 
 namespace baikaldb {
 class SlotRef : public ExprNode {
@@ -40,6 +41,17 @@ public:
     }
     virtual ExprValue get_value(const ExprValue& value) {
         return value;
+    }
+
+    virtual ExprValue get_value_by_record(TableRecord* record) {
+        if (record == nullptr) {
+            return ExprValue::Null();
+        }
+        ExprValue v = record->get_value(record->get_field_by_tag(_field_id));
+        if (_float_precision_len != -1) {
+            v.set_precision_len(_float_precision_len);
+        }
+        return v;
     }
 
     SlotRef* clone() {

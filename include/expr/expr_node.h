@@ -24,6 +24,7 @@
 
 namespace baikaldb {
 const int NOT_BOOL_ERRCODE = -100;
+class TableRecord;
 class ExprNode {
 public:
     ExprNode() {}
@@ -169,6 +170,9 @@ public:
         return ExprValue::Null();
     }
     virtual ExprValue get_value(const ExprValue& value) {
+        return ExprValue::Null();
+    }
+    virtual ExprValue get_value_by_record(TableRecord *record) {
         return ExprValue::Null();
     }
     //释放open创建的资源

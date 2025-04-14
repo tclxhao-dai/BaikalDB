@@ -195,6 +195,11 @@ message PartitionRegion {
     repeated int64 region_id    = 2;
 }
 
+message GenerateInfo {
+    required Expr generate_expr  = 1;
+    optional string generate_str = 2;
+}
+
 message FieldInfo {
     required string field_name        = 1;
     optional string new_field_name    = 2;
@@ -212,6 +217,7 @@ message FieldInfo {
     optional bool is_unique_indicator = 14; //olap表,是否指标唯一列
     optional int32  float_total_len    = 15;
     optional int32 float_precision_len = 16;
+    optional GenerateInfo generate_info = 17;
 };
 
 enum IndexType {

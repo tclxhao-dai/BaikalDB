@@ -694,14 +694,16 @@ int DMLNode::update_row(RuntimeState* state, SmartRecord record, MemRow* row) {
             DB_WARNING_STATE(state, "Unknown column, table_id: %d, field_id: %d", slot.table_id(), slot.field_id());
             return -1;
         }
-        if (field->type == pb::FLOAT || field->type == pb::DOUBLE || field->type == pb::DATETIME) {
-            auto& expr_value = expr->get_value(row).cast_to(slot.slot_type());
-            expr_value.set_precision_len(field->float_precision_len);
-            record->set_value(record->get_field_by_tag(slot.field_id()), expr_value);
+        ExprValue expr_value;
+        if (field->is_generated) {
+            expr_value = expr->get_value_by_record(record.get()).cast_to(slot.slot_type());
         } else {
-            record->set_value(record->get_field_by_tag(slot.field_id()),
-                expr->get_value(row).cast_to(slot.slot_type()));
+            expr_value = expr->get_value(row).cast_to(slot.slot_type());
         }
+        if (field->type == pb::FLOAT || field->type == pb::DOUBLE || field->type == pb::DATETIME) {
+            expr_value.set_precision_len(field->float_precision_len);
+        }
+        record->set_value(record->get_field_by_tag(slot.field_id()), expr_value);
         auto last_insert_id_expr = expr->get_last_insert_id();
         if (last_insert_id_expr != nullptr) {
             state->last_insert_id = last_insert_id_expr->get_value(row).get_numberic<int64_t>();

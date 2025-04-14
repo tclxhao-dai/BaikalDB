@@ -39,6 +39,22 @@ public:
         }
         return ExprValue::True();
     }
+    virtual ExprValue get_value_by_record(TableRecord* record) {
+        bool has_null_val = false;
+        for (int i = 0; i < children_size(); i++) {
+            ExprValue val = _children[i]->get_value_by_record(record);
+            if (!val.is_null() && val.get_numberic<bool>() == false) {
+                return ExprValue::False();
+            }
+            if (val.is_null()) {
+                has_null_val = true;
+            }
+        }
+        if (has_null_val) {
+            return ExprValue::Null();
+        }
+        return ExprValue::True();
+    }
 };
 
 class OrPredicate : public ScalarFnCall {
@@ -60,6 +76,23 @@ public:
         
         return ExprValue::False();
     }
+    virtual ExprValue get_value_by_record(TableRecord* record) {
+        bool has_null_val = false;
+        for (int i = 0; i < children_size(); i++) {
+            ExprValue val = _children[i]->get_value_by_record(record);
+            if (!val.is_null() && val.get_numberic<bool>() == true) { // short-circuit
+                return ExprValue::True();
+            }
+            if (val.is_null()) {
+                has_null_val = true;
+            }
+        }
+        if (has_null_val) {
+            return ExprValue::Null();
+        }
+
+        return ExprValue::False();
+    }
 };
 
 class XorPredicate : public ScalarFnCall {
@@ -75,6 +108,17 @@ public:
         }
         return ExprValue::True(); 
     }
+    virtual ExprValue get_value_by_record(TableRecord* record) {
+        ExprValue val1 = _children[0]->get_value_by_record(record);
+        ExprValue val2 = _children[1]->get_value_by_record(record);
+        if (val1.is_null() || val2.is_null()) {
+            return ExprValue::Null();
+        }
+        if (val1.get_numberic<bool>() == val2.get_numberic<bool>()) {
+            return ExprValue::False();
+        }
+        return ExprValue::True();
+    }
 };
 
 class IsNullPredicate : public ScalarFnCall {
@@ -86,12 +130,26 @@ public:
         }
         return ExprValue::False();
     }
+    virtual ExprValue get_value(TableRecord* record) {
+        ExprValue val1 = _children[0]->get_value_by_record(record);
+        if (val1.is_null()) {
+            return ExprValue::True();
+        }
+        return ExprValue::False();
+    }
 };
 
 class IsTruePredicate : public ScalarFnCall {
 public:
     virtual ExprValue get_value(MemRow* row) {
         ExprValue val1 = _children[0]->get_value(row);
+        if (val1.get_numberic<bool>() == true) {
+            return ExprValue::True();
+        }
+        return ExprValue::False();
+    }
+    virtual ExprValue get_value_by_record(TableRecord* record) {
+        ExprValue val1 = _children[0]->get_value_by_record(record);
         if (val1.get_numberic<bool>() == true) {
             return ExprValue::True();
         }
@@ -189,6 +247,14 @@ class NotPredicate : public ScalarFnCall {
 public:
     virtual ExprValue get_value(MemRow* row) {
         ExprValue val = _children[0]->get_value(row);
+        if (!val.is_null()) {
+            val._u.bool_val = !val.get_numberic<bool>();
+            val.type = pb::BOOL;
+        }
+        return val;
+    }
+    virtual ExprValue get_value_by_record(TableRecord* record) {
+        ExprValue val = _children[0]->get_value_by_record(record);
         if (!val.is_null()) {
             val._u.bool_val = !val.get_numberic<bool>();
             val.type = pb::BOOL;

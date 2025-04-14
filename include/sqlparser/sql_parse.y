@@ -3473,6 +3473,17 @@ ColumnDef:
         }
         $$ = column;
     }
+    | ColumnName Type AS Expr ColumnOptionList
+    {
+        ColumnDef* column = new_node(ColumnDef);
+        column->name = (ColumnName*)$1;
+        column->type = (FieldType*)$2;
+        column->generate_expr = (ExprNode*)$4;
+        for (int idx = 0; idx < $5->children.size(); ++idx) {
+            column->options.push_back((ColumnOption*)($5->children[idx]), parser->arena);
+        }
+        $$ = column;
+    }
     ;
 
 ColumnDefList:

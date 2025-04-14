@@ -231,6 +231,7 @@ struct ColumnOption : public Node {
 struct ColumnDef : public Node {
     ColumnName* name = nullptr;
     FieldType*  type = nullptr;
+    ExprNode* generate_expr = nullptr;
     Vector<ColumnOption*> options;
 
     ColumnDef() {
