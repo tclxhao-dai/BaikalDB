@@ -336,12 +336,21 @@ int InsertPlanner::parse_values_list(pb::InsertNode* node) {
                 if (_fields[idx].id == _olap_sign_field_id) {
                     olap_sign_in_value = true;
                 }
+                if (_fields[idx].is_generated) {
+                    DB_WARNING("generated column %s don't support set value", _fields[idx].name.c_str());
+                    _ctx->stat_info.error_code = ER_INSERT_INFO;
+                    _ctx->stat_info.error_msg << "generated column " << _fields[idx].name << " don't support set value";
+                    return -1;
+                }
                 if (0 != fill_record_field((parser::ExprNode*)row_expr->children[idx], row, _fields[idx])) {
                     DB_WARNING("fill_record_field fail, field_id:%d", _fields[idx].id);
                     return -1;
                 }
             }
             for (auto& field : _default_fields) {
+                if (field.is_generated) {
+                    continue;
+                }
                 if (0 != _factory->fill_default_value(row, field)) {
                     return -1;
                 }
@@ -349,6 +358,15 @@ int InsertPlanner::parse_values_list(pb::InsertNode* node) {
             if (!_olap_uniq_field_ids.empty() && !olap_sign_in_value) {
                 if (0 != parse_olap_sign_field_value(row)) {
                     return -1;
+                }
+            }
+            // 对生成列再次填充值
+            for (auto& field : _default_fields) {
+                if (field.is_generated) {
+                    if (0 != fill_record_field(nullptr, row, field)) {
+                        DB_WARNING("fill_record_field fail, field_id:%d",  field.id);
+                        return -1;
+                    }
                 }
             }
             _ctx->insert_records.emplace_back(row);
@@ -359,9 +377,13 @@ int InsertPlanner::parse_values_list(pb::InsertNode* node) {
 
 int InsertPlanner::fill_record_field(const parser::ExprNode* parser_expr, SmartRecord record, FieldInfo& field) {
     pb::Expr value_expr;
-    if (0 != create_expr_tree(parser_expr, value_expr, CreateExprOptions())) {
-        DB_WARNING("create insertion value expr failed");
-        return -1;
+    if (!field.is_generated) {
+        if (0 != create_expr_tree(parser_expr, value_expr, CreateExprOptions())) {
+            DB_WARNING("create insertion value expr failed");
+            return -1;
+        }
+    } else {
+        value_expr = field.generate_expr;
     }
     if (value_expr.nodes_size() <= 0) {
         DB_WARNING("node size = 0");
@@ -385,6 +407,9 @@ int InsertPlanner::fill_record_field(const parser::ExprNode* parser_expr, SmartR
         return -1;
     }
     ExprValue value = expr->get_value(nullptr);
+    if (expr->node_type() == pb::FUNCTION_CALL) {
+        value = expr->get_value_by_record(record.get());
+    }
     // 20190101101112 这种转换现在只支持string类型
     if (is_datetime_specic(field.type) && value.is_numberic()) {
         value.cast_to(pb::STRING).cast_to(field.type);
