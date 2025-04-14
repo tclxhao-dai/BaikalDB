@@ -549,6 +549,14 @@ int SchemaFactory::update_table_internal(SchemaMapping& background, const pb::Sc
     int pb_idx = 0;
     //auto inc可以被取消
     tbl_info.auto_inc_field_id = -1;
+    std::map<std::string, pb::FieldInfo> field_name_map;
+    for (int idx = 0; idx < field_cnt; ++idx) {
+        const pb::FieldInfo& field = table.fields(idx);
+        if (field.deleted()) {
+            continue;
+        }
+        field_name_map[field.field_name()] = field;
+    }
     for (int idx = 0; idx < field_cnt; ++idx) {
         const pb::FieldInfo& field = table.fields(idx);
         if (field.deleted()) {
@@ -628,6 +636,35 @@ int SchemaFactory::update_table_internal(SchemaMapping& background, const pb::Sc
         }
         if (field.has_float_precision_len()) {
             field_info.float_precision_len = field.float_precision_len();
+        }
+        if (field.has_generate_info()) {
+            field_info.generate_expr = field.generate_info().generate_expr();
+            field_info.generate_str = field.generate_info().generate_str();
+            field_info.is_generated = true;
+            tbl_info.has_generated_fields = true;
+            auto set_expr_type_func = [&field_name_map, &field_info](pb::Expr& expr) -> int {
+                for (size_t i = 0; i < expr.nodes_size(); i++) {
+                    auto node = expr.mutable_nodes(i);
+                    if (node->has_derive_node() && node->derive_node().has_field_name()) {
+                        auto field_name = node->derive_node().field_name();
+                        auto iter = field_name_map.find(field_name);
+                        if (iter != field_name_map.end()) {
+                            auto& f = iter->second;
+                            node->set_col_type(f.mysql_type());
+                            node->mutable_derive_node()->set_field_id(f.field_id());
+                            node->set_col_flag(f.flag());
+                            field_info.generate_from_id = f.field_id();
+                        } else {
+                            return -1;
+                        }
+                    }
+                }
+                return 0;
+            };
+            if (set_expr_type_func(field_info.generate_expr)) {
+                DB_FATAL("generated column set expr faild! table: %s, field: %s", tbl_info.name.c_str(), field_info.name.c_str());
+                return -1;
+            }
         }
         tbl_info.fields.push_back(field_info);
         //DB_WARNING("field_name:%s, field_id:%d", field_info.name.c_str(), field_info.id);

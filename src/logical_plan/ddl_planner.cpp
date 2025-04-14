@@ -387,6 +387,45 @@ int DDLPlanner::add_column_def(pb::SchemaInfo& table, parser::ColumnDef* column,
         field->set_can_null(true);
         _column_can_null[column->name->name.value] = true;
     }
+    if (column->generate_expr != nullptr) {
+        field->set_can_null(false);
+        if (!field->has_default_value()) {
+            _ctx->stat_info.error_code = ER_ALTER_OPERATION_NOT_SUPPORTED;;
+            _ctx->stat_info.error_msg << "generated column " << field->field_name() << " should have default value";
+            DB_WARNING("generated column %s should have default value", field->field_name().c_str());
+            return -1;
+        }
+        auto generate_info = field->mutable_generate_info();
+        generate_info->set_generate_str(column->generate_expr->to_string());
+        auto expr = generate_info->mutable_generate_expr();
+        CreateExprOptions expr_options;
+        expr_options.partition_expr = true;
+        if (0 != create_expr_tree(column->generate_expr, *expr, expr_options)) {
+            _ctx->stat_info.error_code = ER_ALTER_OPERATION_NOT_SUPPORTED;;
+            _ctx->stat_info.error_msg << "error parse generate expr for column " << field->field_name();
+            DB_WARNING("error parse generate expr for column %s", field->field_name().c_str());
+            return -1;
+        }
+        if (expr->nodes_size() == 0 || expr->nodes(0).node_type() != pb::FUNCTION_CALL) {
+            _ctx->stat_info.error_code = ER_ALTER_OPERATION_NOT_SUPPORTED;;
+            _ctx->stat_info.error_msg << "only support FUNCTION_CALL for generated column " << field->field_name();
+            DB_WARNING("only support FUNCTION_CALL for generate column %s", field->field_name().c_str());
+            return -1;
+        }
+        std::set<std::string> expr_field_names;
+        for (size_t i = 0; i < expr->nodes_size(); i++) {
+            auto& node = expr->nodes(i);
+            if (node.has_derive_node() && node.derive_node().has_field_name()) {
+                expr_field_names.insert(node.derive_node().field_name());
+            }
+        }
+        if (expr_field_names.size() != 1) {
+            _ctx->stat_info.error_code = ER_ALTER_OPERATION_NOT_SUPPORTED;;
+            _ctx->stat_info.error_msg << "generated column " << field->field_name() << " should have only one field";
+            DB_WARNING("generated column %s should have only one field", field->field_name().c_str());
+            return -1;
+        }
+    }
     field->set_flag(column->type->flag);
     if (is_unique_indicator) {
         field->set_is_unique_indicator(true);

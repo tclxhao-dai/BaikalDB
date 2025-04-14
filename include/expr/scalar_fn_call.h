@@ -18,6 +18,7 @@
 #include "expr_node.h"
 #include "fn_manager.h"
 #include "arrow_function.h"
+#include "table_record.h"
 
 namespace baikaldb {
 class ScalarFnCall : public ExprNode {
@@ -28,6 +29,7 @@ public:
     virtual int open();
     virtual ExprValue get_value(MemRow* row);
     virtual ExprValue get_value(const ExprValue& value);
+    virtual ExprValue get_value_by_record(TableRecord* record);
     const pb::Function& fn() {
         return _fn;
     }

@@ -15,6 +15,7 @@
 #pragma once
 #include "expr_node.h"
 //#include "sql_parser.h"
+#include "table_record.h"
 
 namespace baikaldb {
 class Literal : public ExprNode {
@@ -290,6 +291,9 @@ public:
         return 0;
     }
 
+    virtual ExprValue get_value_by_record(TableRecord *record) {
+        return _value.cast_to(_col_type);
+    }
 
 private:
     void value_to_node_type() {

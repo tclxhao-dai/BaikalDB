@@ -201,6 +201,8 @@ int UpdatePlanner::parse_kv_list() {
         }
     }
     std::set<int32_t> update_field_ids;
+    std::map<int, int>field_id_idx_map;
+    std::map<int, FieldInfo*>field_id_map;
     for (int idx = 0; idx < set_list.size(); ++idx) {
         if (set_list[idx] == nullptr) {
             DB_WARNING("set item is nullptr");
@@ -226,6 +228,11 @@ int UpdatePlanner::parse_kv_list() {
         auto slot = get_scan_ref_slot(alias_name, field_info->table_id, field_info->id, field_info->type);
         _update_slots.push_back(slot);
         update_field_ids.insert(field_info->id);
+        if (table_info.has_generated_fields) {
+            // 表结构包含生产列， 需要记录更新字段的idx
+            field_id_idx_map[field_info->id] = _update_values.size();
+            field_id_map[field_info->id] = field_info;
+        }
         // 更新分区键,走全局索引流程
         if (table_info.partition_ptr != nullptr && table_info.partition_ptr->partition_field_id() == field_info->id) {
             _ctx->execute_global_flow = true;
@@ -240,6 +247,13 @@ int UpdatePlanner::parse_kv_list() {
                 DB_WARNING("dblink not support update partition_key or primary_key, table_id: %ld", table_info.id);
                 return -1;
             }
+        }
+
+        if (field_info->is_generated) {
+            DB_WARNING("generated column %s don't support set value", field_info->name.c_str());
+            _ctx->stat_info.error_code = ER_UPDATE_INFO;
+            _ctx->stat_info.error_msg << "generated column " << field_info->name << " don't support set value";
+            return -1;
         }
 
         pb::Expr value_expr;
@@ -266,20 +280,54 @@ int UpdatePlanner::parse_kv_list() {
         }
         _update_values.push_back(value_expr);
     }
-    for (auto& field : table_info.fields) {
-        if (update_field_ids.count(field.id) != 0) {
+    for (size_t i = 0; i < table_info.fields.size(); ++i) {
+        auto field_info = &(table_info.fields[i]);
+        if (update_field_ids.count(field_info->id) != 0) {
             continue;
         }
-        if (field.on_update_value == "(current_timestamp())") {
+        if (field_info->on_update_value == "(current_timestamp())") {
             pb::Expr value_expr;
             auto node = value_expr.add_nodes();
             node->set_num_children(0);
             node->set_node_type(pb::STRING_LITERAL);
             node->set_col_type(pb::STRING);
-            node->mutable_derive_node()->set_string_val(ExprValue::Now(field.float_precision_len).get_string());
-            auto slot = get_scan_ref_slot(table_info.name, field.table_id, field.id, field.type);
+            node->mutable_derive_node()->set_string_val(ExprValue::Now(field_info->float_precision_len).get_string());
+            auto slot = get_scan_ref_slot(table_info.name, field_info->table_id, field_info->id, field_info->type);
             _update_slots.push_back(slot);
             _update_values.push_back(value_expr);
+            if (table_info.has_generated_fields) {
+                field_id_idx_map[field_info->id] = _update_values.size();
+                field_id_map[field_info->id] = field_info;
+            }
+        } else if (field_info->is_generated) {
+            auto generate_field_id = field_info->generate_from_id;
+            auto iter = field_id_idx_map.find(generate_field_id);
+            if (iter == field_id_idx_map.end()) {
+                continue;
+            }
+            auto expr = field_info->generate_expr;
+            expr.set_table(table_info.name);
+            for (size_t i = 0; i < expr.nodes_size(); i++) {
+                auto node = expr.mutable_nodes(i);
+                if (node->has_derive_node() && node->derive_node().has_field_name()) {
+                    auto field_id = node->derive_node().field_id();
+                    auto field_info = field_id_map[field_id];
+                    auto iter = field_id_idx_map.find(field_id);
+                    if (iter != field_id_idx_map.end()) {
+                        auto idx  = iter->second;
+                        auto fexpr = _update_values[idx];
+                        auto slot = get_scan_ref_slot(table_info.name, field_info->table_id, field_info->id, field_info->type);
+                        node->mutable_derive_node()->set_tuple_id(slot.tuple_id());
+                        node->mutable_derive_node()->set_slot_id(slot.slot_id());
+                        node->mutable_derive_node()->set_field_id(slot.field_id());
+                    }
+                }
+            }
+            auto slot = get_scan_ref_slot(table_info.name, field_info->table_id, field_info->id, field_info->type);
+            field_id_idx_map[field_info->id] = _update_values.size();
+            field_id_map[field_info->id] = field_info;
+            _update_slots.push_back(slot);
+            _update_values.push_back(expr);
         }
     }
     return 0;

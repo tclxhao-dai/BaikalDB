@@ -153,6 +153,10 @@ struct FieldInfo {
     bool                is_unique_indicator = false; // 指标唯一列
     int32_t             float_total_len = -1;
     int32_t             float_precision_len = -1;
+    bool                is_generated = false;
+    pb::Expr            generate_expr; 
+    std::string         generate_str;
+    int32_t             generate_from_id = -1;
 };
 
 struct DistInfo {
@@ -214,6 +218,7 @@ struct TableInfo {
     bool                    has_fulltext = false;
     bool                    has_rollup_index = false;
     bool                    has_vector_index = false;
+    bool                    has_generated_fields = false;
     // 该表是否已和 binlog 表关联
     bool is_linked = false;
     bool is_binlog = false;
