@@ -85,6 +85,7 @@ DEFINE_bool(olap_import_mode, false, "is olap import, default: false");
 DEFINE_bool(rocks_enable_blob_files, false, "rocksdb enable_blob_files, default: false");
 DEFINE_uint64(rocks_min_blob_size, 4096, "rocksdb min_blob_size, default: 4096");
 DEFINE_bool(rocks_checksum_type_use_old, true, "rocksdb checksum_type use kCRC32c");
+DEFINE_int32(rocks_data_ttl_days, 30, "data cf ttl default 30 days: rocksdb compaction ");
 
 const std::string RocksWrapper::RAFT_LOG_CF = "raft_log";
 const std::string RocksWrapper::BIN_LOG_CF  = "bin_log_new";
@@ -292,6 +293,10 @@ int32_t RocksWrapper::init(const std::string& path) {
         _data_cf_option.bottommost_compression = rocksdb::kZSTD;
         _data_cf_option.bottommost_compression_opts.max_dict_bytes = 1 << 14; // 16KB
         _data_cf_option.bottommost_compression_opts.zstd_max_train_bytes = 1 << 18; // 256KB
+    }
+
+    if (FLAGS_rocks_data_ttl_days > 0) {
+        _data_cf_option.ttl = FLAGS_rocks_data_ttl_days * 24 * 60 * 60;
     }
 
     //todo
