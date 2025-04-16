@@ -77,6 +77,7 @@ DEFINE_int32(level0_max_sst_num, 500, "max level0 num for fast importer");
 DEFINE_bool(enable_blob_files, false, "set it to true to enable key-value separation");
 DEFINE_int32(min_blob_size, 1 * 1024,
              "values at or above this threshold will be written to blob files during flush or compaction");
+DEFINE_int32(rocks_data_ttl_days, 30, "data cf ttl default 30 days: rocksdb compaction ");
 
 const std::string RocksWrapper::RAFT_LOG_CF = "raft_log";
 const std::string RocksWrapper::BIN_LOG_CF  = "bin_log_new";
@@ -262,6 +263,10 @@ int32_t RocksWrapper::init(const std::string& path) {
         _data_cf_option.enable_blob_garbage_collection  = true;
         _data_cf_option.blob_garbage_collection_age_cutoff  = 0.25;
         _data_cf_option.blob_garbage_collection_force_threshold  = 0.8;
+    }
+
+    if (FLAGS_rocks_data_ttl_days > 0) {
+        _data_cf_option.ttl = FLAGS_rocks_data_ttl_days * 24 * 60 * 60;
     }
 
     //todo
