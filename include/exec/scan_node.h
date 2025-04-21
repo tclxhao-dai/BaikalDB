@@ -298,6 +298,7 @@ public:
             return;
         }
         if (pos_index.right_field_cnt() > 0) {
+            _has_index = true;
             return;
         }
         for (auto& range : pos_index.ranges()) {
