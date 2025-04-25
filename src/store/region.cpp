@@ -87,6 +87,7 @@ DECLARE_int64(transfer_leader_catchup_time_threshold);
 DEFINE_bool(force_clear_txn_for_fast_recovery, false, "clear all txn info for fast recovery");
 DEFINE_bool(split_add_peer_asyc, false, "asyc split add peer");
 DEFINE_int32(no_op_timer_timeout_ms, 100, "no op timer timeout(ms)");
+DEFINE_int32(send_no_op_period_ms, -1, "leader send no op to follower period");
 DEFINE_int32(follow_read_timeout_s, 10, "follow read timeout(s)");
 DEFINE_bool(apply_partial_rollback, true, "apply partial rollback");
 DEFINE_bool(demotion_read_index_without_leader, true, "demotion read index without leader");
@@ -3556,7 +3557,7 @@ void Region::do_apply(int64_t term, int64_t index, const pb::StoreReq& request, 
             if (done != nullptr) {
                 ((DMLClosure*)done)->response->set_errcode(pb::SUCCESS);
             }
-            DB_NOTICE("op_type=%s, region_id: %ld, applied_index:%ld, term:%ld",
+            DB_DEBUG("op_type=%s, region_id: %ld, applied_index:%ld, term:%ld",
                       pb::OpType_Name(request.op_type()).c_str(), _region_id, _applied_index, term);
             break;
         }
@@ -4843,6 +4844,9 @@ void Region::on_leader_start(int64_t term) {
         bth.run(clear_applying_txn_fun);
     } else {
         leader_start(term);
+    }
+    if (FLAGS_send_no_op_period_ms > 0) {
+        _no_op_timer.restart_timer(FLAGS_send_no_op_period_ms);
     }
 }
 
@@ -8724,7 +8728,11 @@ void NoOpTimer::run() {
             DB_WARNING("region_id: %ld, send %s on op fail", _region->get_region_id(), address.c_str());
         }
     }
-    stop_timer();
+    if (FLAGS_send_no_op_period_ms > 0) {
+        restart_timer(FLAGS_send_no_op_period_ms);
+    } else {
+        stop_timer();
+    }
     return;
 }
 } // end of namespace
