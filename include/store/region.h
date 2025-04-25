@@ -208,12 +208,23 @@ public:
             return -1;
         }
         _region = region;
+        _timeout_ms = timeout_ms;
         return ret;
     }
+    void restart_timer(int timeout_ms) {
+        int new_timeout_ms = timeout_ms / 2 + butil::fast_rand() % timeout_ms; 
+        reset(new_timeout_ms);
+        _is_restart_by_timeout = true;
+        if (!_is_running) {
+            _is_running = true;
+            start();
+        }
+    }
     void reset_timer() {
-        if (_is_running) {
-            reset();
-        } else {
+        if (_is_restart_by_timeout) {
+            _is_restart_by_timeout = false;
+            reset(_timeout_ms);
+        } else if (!_is_running) {
             _is_running = true;
             start();
         }
@@ -227,6 +238,8 @@ protected:
     virtual void on_destroy() {};
     Region* _region = nullptr;
     bool _is_running = false;
+    int _timeout_ms;
+    bool _is_restart_by_timeout = false;
 };
 
 
