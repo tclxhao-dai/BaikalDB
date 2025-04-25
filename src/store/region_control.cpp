@@ -558,6 +558,9 @@ int RegionControl::transfer_leader(const pb::TransLeaderRequest& trans_leader_re
             DB_WARNING("get_peer_applied_index fail,region_id: %ld", region->get_region_id());
             return;
         }
+        if (peer_dml_latency == 0) {
+            peer_dml_latency = 100;
+        }
         if ((region->_applied_index - peer_applied_index) * peer_dml_latency
                 > (FLAGS_transfer_leader_catchup_time_threshold)) {
             DB_WARNING("peer applied index: %ld is less than applied index: %ld, peer_dml_latency: %ld",
