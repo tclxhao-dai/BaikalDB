@@ -18,6 +18,7 @@
 #include "meta_writer.h"
 #include "store.h"
 #include "log_entry_reader.h"
+#include "fs_rw_tocken_bucket.h"
 
 namespace baikaldb {
 DEFINE_int64(snapshot_timeout_min, 10, "snapshot_timeout_min : 10min");
@@ -175,7 +176,7 @@ ssize_t RocksdbReaderAdaptor::read(butil::IOPortal* portal, off_t offset, size_t
     std::string region_info_key = MetaWriter::get_instance()->region_info_key(_region_id);
     // 大region addpeer中重置time_cost，防止version=0超时删除
     _region_ptr->reset_timecost();
-    
+    int64_t consume_size = 0;
     while (count < size) {
         if (!_context->iter->Valid()
                 || !_context->iter->key().starts_with(_context->prefix)) {
@@ -237,11 +238,22 @@ ssize_t RocksdbReaderAdaptor::read(butil::IOPortal* portal, off_t offset, size_t
             read_size += serialize_to_iobuf(portal, _context->iter->key());
             read_size += serialize_to_iobuf(portal, _context->iter->value());
         }
+        consume_size += read_size;
+        if (consume_size > 10 * 1024) {
+            FsRWTokenBucket::get_read_instance()->consume(consume_size);
+            consume_size = 0;
+        }
+        static bvar::Adder<uint64_t> bvar_fs_read_bytes("fs_read_bytes");
+        static bvar::PerSecond<bvar::Adder<uint64_t>> fs_read_bytes_second("fs_read_bytes_second", &bvar_fs_read_bytes);
+        bvar_fs_read_bytes << read_size;
         count += read_size;
         ++_num_lines;
         _context->offset += read_size;
         _context->offset_update_time.reset();
         _context->iter->Next();
+    }
+    if (consume_size > 0) {
+        FsRWTokenBucket::get_read_instance()->consume(consume_size);
     }
     DB_WARNING("region_id: %ld read done. count: %ld, key_num: %ld, time_cost: %ld, "
             "off:%lu, size:%lu, last_off:%lu, last_count:%lu", 
@@ -428,6 +440,7 @@ int SstWriterAdaptor::iobuf_to_sst(butil::IOBuf data) {
     char key_buf[1024];
     // 10k的栈应该可以满足大部分场景
     char value_buf[10 * 1024];
+    int64_t consume_size = 0;
     while (!data.empty()) {
         size_t key_size = 0;
         size_t nbytes = data.cutn((void*)&key_size, sizeof(size_t));
@@ -452,6 +465,14 @@ int SstWriterAdaptor::iobuf_to_sst(butil::IOBuf data) {
             return -1;
         }
         data.pop_front(key_size);
+        consume_size += key_size;
+        if (consume_size > 10240) {
+            FsRWTokenBucket::get_write_instance()->consume(consume_size);
+            consume_size = 0;
+        }
+        static bvar::Adder<uint64_t> bvar_fs_write_bytes("fs_write_bytes");
+        static bvar::PerSecond<bvar::Adder<uint64_t>> fs_write_bytes_second("fs_write_bytes_second", &bvar_fs_write_bytes);
+        bvar_fs_write_bytes << key_size;
 
         size_t value_size = 0;
         nbytes = data.cutn((void*)&value_size, sizeof(size_t));
@@ -477,6 +498,12 @@ int SstWriterAdaptor::iobuf_to_sst(butil::IOBuf data) {
             return -1;
         }
         data.pop_front(value_size);
+        consume_size += value_size;
+        if (consume_size > 10240) {
+            FsRWTokenBucket::get_write_instance()->consume(consume_size);
+            consume_size = 0;
+        }
+        bvar_fs_write_bytes << value_size;
         // debug meta region_info
         if (_is_meta) {
             if (key == region_info_key) {
@@ -498,6 +525,9 @@ int SstWriterAdaptor::iobuf_to_sst(butil::IOBuf data) {
                         s.ToString().c_str(), _region_id);
             return -1;
         }
+    }
+    if (consume_size > 0) {
+        FsRWTokenBucket::get_write_instance()->consume(consume_size);
     }
     return 0;
 }
