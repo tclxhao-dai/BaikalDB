@@ -33,6 +33,7 @@
 #include "concurrency.h"
 #include "mut_table_key.h"
 #include "my_raft_log_storage.h"
+#include "fs_rw_tocken_bucket.h"
 //#include <jemalloc/jemalloc.h>
 #include "qos.h"
 #include "rocksdb_filesystem.h"
@@ -85,6 +86,8 @@ DEFINE_bool(stop_ttl_data, false, "stop ttl data");
 DEFINE_bool(stop_cold_region_flush, false, "stop_cold_region_flush");
 DEFINE_bool(olap_region_split_enable, false, "olap_region_split_enable");
 DEFINE_int64(check_peer_delay_min, 1, "check peer delay min");
+DEFINE_int64(raft_fs_max_read_size_peer_second, 0, "raft fs read max size peer second, default: 0");
+DEFINE_int64(raft_fs_max_write_size_peer_second, 0, "raft fs write max size peer second, default: 0");
 DECLARE_bool(store_rocks_hang_check);
 DECLARE_int32(store_rocks_hang_check_timeout_s);
 DECLARE_int32(store_rocks_hang_cnt_limit);
@@ -94,6 +97,8 @@ DECLARE_string(cold_rocksdb_afs_infos);
 DECLARE_string(meta_server_bns);
 DECLARE_bool(auto_update_meta_list);
 BRPC_VALIDATE_GFLAG(rocksdb_perf_level, brpc::NonNegativeInteger);
+BRPC_VALIDATE_GFLAG(raft_fs_max_read_size_peer_second, brpc::PassValidate);
+BRPC_VALIDATE_GFLAG(raft_fs_max_write_size_peer_second, brpc::PassValidate);
 
 Store::~Store() {
 }
@@ -281,6 +286,9 @@ int Store::init_before_listen(std::vector<std::int64_t>& init_region_ids) {
     }
 
     _db_statistic_bth.run([this]() {start_db_statistics();});
+
+    _fs_rw_limit_update_bth.run([this]() {update_fs_rw_limit_rate();});
+
     DB_WARNING("store init_before_listen success, region_size:%lu, doing_snapshot_regions_size:%lu"
             "heartbeat_process_time:%ld new_region_process_time:%ld",
            init_region_ids.size(), doing_snapshot_regions.size(), heartbeat_process_time, new_region_process_time);
@@ -2259,6 +2267,25 @@ void Store::start_db_statistics() {
             DB_WARNING("get_rocks_statistic failed");
         }
         DB_WARNING("level0: %lu, compaction: %lu", level0_ssts, pending_compaction_size);
+    }
+}
+
+void Store::update_fs_rw_limit_rate() {
+    int64_t idx = 0;
+    while (!_shutdown) {
+        int64_t flag_read_limit = FLAGS_raft_fs_max_read_size_peer_second;
+        if (flag_read_limit > 0) {
+            FsRWTokenBucket::get_read_instance()->reset_rate(flag_read_limit);
+        } else {
+            FsRWTokenBucket::get_read_instance()->reset_rate(0);
+        }
+        int64_t flag_write_limit = FLAGS_raft_fs_max_write_size_peer_second;
+        if (flag_write_limit > 0) {
+            FsRWTokenBucket::get_write_instance()->reset_rate(flag_write_limit);
+        } else {
+            FsRWTokenBucket::get_write_instance()->reset_rate(0);
+        }
+        bthread_usleep(10 * 1000 * 1000);
     }
 }
 

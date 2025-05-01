@@ -162,6 +162,8 @@ public:
 
     void start_db_statistics();
 
+    void update_fs_rw_limit_rate();
+
     void check_region_peer_delay();
 
     void vector_compact_thread();
@@ -289,6 +291,8 @@ public:
         DB_WARNING("heart beat bth join");
         _db_statistic_bth.join();
         DB_WARNING("db statistic bth join");
+        _fs_rw_limit_update_bth.join();
+        DB_WARNING("fs rw limit update bth join");
         _add_peer_queue.join();
         DB_WARNING("_add_peer_queue join");
         _remove_region_queue.join();
@@ -454,6 +458,8 @@ private:
     Bthread _binlog_fake_bth;
     // 定时检测rocksdb是否hang，并且打印rocksdb properties
     Bthread _db_statistic_bth;
+
+    Bthread _fs_rw_limit_update_bth;
 
     Bthread _region_peer_delay_bth;
 
