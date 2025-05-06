@@ -32,6 +32,7 @@ DEFINE_int32(region_region_size, 100 * 1024 * 1024, "region size, default:100M")
 DEFINE_int64(table_tombstone_gc_time_s, 3600 * 24 * 5, "time interval to clear table_tombstone. default(5d)");
 DEFINE_uint64(statistics_heart_beat_bytesize, 256 * 1024 * 1024, "default(256M)");
 DEFINE_int32(pre_split_threashold, 300, "pre_split_threashold for sync create table");
+DEFINE_bool(allow_link_table_rename, false, "allow rename table when table has linked binlog");
 
 void TableTimer::run() {
     DB_NOTICE("Table Timer run.");
@@ -742,7 +743,7 @@ void TableManager::rename_table(const pb::MetaManagerRequest& request,
         return;
     }
     
-    if (check_table_has_ddlwork(table_id) || check_table_is_linked(table_id)) {
+    if (check_table_has_ddlwork(table_id) || (!FLAGS_allow_link_table_rename && check_table_is_linked(table_id))) {
         DB_WARNING("table is doing ddl, request:%s", request.ShortDebugString().c_str());
         IF_DONE_SET_RESPONSE(done, pb::INPUT_PARAM_ERROR, "table is doing ddl");
         return;
@@ -800,8 +801,8 @@ void TableManager::swap_table(const pb::MetaManagerRequest& request,
         return;
     }
     
-    if (check_table_has_ddlwork(table_id) || check_table_is_linked(table_id) ||
-            check_table_has_ddlwork(new_table_id) || check_table_is_linked(new_table_id)) {
+    if (check_table_has_ddlwork(table_id) || (!FLAGS_allow_link_table_rename && check_table_is_linked(table_id)) ||
+            check_table_has_ddlwork(new_table_id) || (!FLAGS_allow_link_table_rename && check_table_is_linked(new_table_id))) {
         DB_WARNING("table is doing ddl, request:%s", request.ShortDebugString().c_str());
         IF_DONE_SET_RESPONSE(done, pb::INPUT_PARAM_ERROR, "table is doing ddl");
         return;
