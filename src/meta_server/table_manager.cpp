@@ -38,6 +38,7 @@ DEFINE_int32(remove_dropped_partition_region_s, 60 * 1000 * 1000LL, "remove drop
 DEFINE_bool(use_partition_split_key, false, "add dynamic partition use get_partition_split_key");
 DEFINE_int32(dynamic_partition_change_time_s, 3000, "dynamic partition change time, default: 3000s");
 DEFINE_int32(dynamic_partition_change_cnt, 10, "dynamic partition change count, default: 10");
+DEFINE_bool(allow_link_table_rename, false, "allow rename table when table has linked binlog");
 
 void TableTimer::run() {
     DB_NOTICE("Table Timer run.");
@@ -980,11 +981,12 @@ void TableManager::rename_table(const pb::MetaManagerRequest& request,
         return;
     }
     
-    if (check_table_has_ddlwork(table_id) || check_table_is_linked(table_id)) {
+    if (check_table_has_ddlwork(table_id) || (!FLAGS_allow_link_table_rename && check_table_is_linked(table_id))) {
         DB_WARNING("table is doing ddl, request:%s", request.ShortDebugString().c_str());
         IF_DONE_SET_RESPONSE(done, pb::INPUT_PARAM_ERROR, "table is doing ddl");
         return;
     }
+
     std::string namespace_name = request.table_info().namespace_name();
     std::string database_name = namespace_name + "\001" + request.table_info().database();
     std::string old_table_name = database_name + "\001" + request.table_info().table_name();
@@ -1039,8 +1041,8 @@ void TableManager::swap_table(const pb::MetaManagerRequest& request,
         return;
     }
     
-    if (check_table_has_ddlwork(table_id) || check_table_is_linked(table_id) ||
-            check_table_has_ddlwork(new_table_id) || check_table_is_linked(new_table_id)) {
+    if (check_table_has_ddlwork(table_id) || (!FLAGS_allow_link_table_rename && check_table_is_linked(table_id)) ||
+            check_table_has_ddlwork(new_table_id) || (!FLAGS_allow_link_table_rename && check_table_is_linked(new_table_id))) {
         DB_WARNING("table is doing ddl, request:%s", request.ShortDebugString().c_str());
         IF_DONE_SET_RESPONSE(done, pb::INPUT_PARAM_ERROR, "table is doing ddl");
         return;
