@@ -25,10 +25,12 @@ ExternalProject_Add(
         PREFIX ${GPERF_SOURCES_DIR}
         GIT_REPOSITORY "https://github.com/gperftools/gperftools.git"
         GIT_TAG "gperftools-2.7"
+        UPDATE_DISCONNECTED 1 # Prevents git updates if the local repo for the tag is already present.
         CONFIGURE_COMMAND sh autogen.sh COMMAND sh ./configure --prefix=${GPERF_INSTALL_DIR} --disable-debugalloc --enable-frame-pointers
         BUILD_IN_SOURCE 1
         BUILD_COMMAND $(MAKE) -j ${NUM_OF_PROCESSOR}
         INSTALL_COMMAND $(MAKE) install
+        BUILD_BYPRODUCTS  ${GPERFTOOLS_LIBRARIES}
 )
 
 ADD_LIBRARY(gperf STATIC IMPORTED GLOBAL)
