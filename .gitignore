@@ -39,8 +39,8 @@
 [._]sw[a-p]
 
 .idea
-cmake-build-debug
-cmake-build-release
+cmake-build-debug*
+cmake-build-release*
 .DS_Store
 
 # eclipse
