@@ -30,6 +30,9 @@ DECLARE_int32(region_faulty_interval_times);
 DEFINE_int64(modify_learner_peer_interval_us, 100 * 1000 * 1000LL, "modify learner peer interval");
 DEFINE_int32(balance_add_peer_num, 10, "add peer num each time, default(10)");
 DEFINE_int32(binlog_keep_days, 7, "binlog keep days, default(7)");
+DEFINE_int32(meta_max_add_peer_num,100,"max add peer requests that meta leader sending,default 100");
+DEFINE_int32(meta_max_add_peer_num_per_store,4,"meta control max store writing sst process num when add peer");
+
 BRPC_VALIDATE_GFLAG(balance_add_peer_num, brpc::PositiveInteger);
 BRPC_VALIDATE_GFLAG(binlog_keep_days, brpc::NonNegativeInteger);
 
@@ -448,27 +451,37 @@ void RegionManager::add_peer_for_store(const std::string& instance,
         }
     }
     auto asyn_add_peer = [this, instance, instance_idc, status] () {
-        std::unordered_map<std::string, std::vector<pb::AddPeer>> add_peer_requests;
+        //add_peer_requests: peer_dest_instance -> { leader,AddPeerReq }
+        std::unordered_map<std::string, std::vector<AddPeerWithLeader>> add_peer_requests;
         pre_process_add_peer_for_store(instance, instance_idc, status.state, add_peer_requests);
+        size_t max_add_peer_queue_len = 0;
         ConcurrencyBthread concur_bth(add_peer_requests.size());
+        for (auto &add_peer_per_instance:add_peer_requests) {
+            max_add_peer_queue_len = std::max(max_add_peer_queue_len,add_peer_per_instance.second.size());
+        }
+
+        //轮询分发到被add_peer的实例上,meta侧控制的并发数是需要被add peer的实例数
         for (auto& add_peer_per_instance : add_peer_requests) {
-            auto add_peer_fun_per_instance = [this, add_peer_per_instance] ()  {
-                ConcurrencyBthread sub_bth(4);
-                std::string leader = add_peer_per_instance.first;
+            auto add_peer_fun_per_instance = [this, add_peer_per_instance]() {
+                DB_WARNING("start send add_peer request,dest:%s",add_peer_per_instance.first)
+                ConcurrencyBthread sub_bth(FLAGS_meta_max_add_peer_num_per_store);
                 for (auto& add_peer_request : add_peer_per_instance.second) {
-                    auto add_peer_fun = [this, leader, add_peer_request] () {
+                    auto add_peer_fun = [this,  add_peer_request] () {
+                        std::string leader = add_peer_request.leader;
                         StoreInteract store_interact(leader.c_str());
-                        pb::StoreRes response; 
-                        auto ret = store_interact.send_request("add_peer", add_peer_request, response);
+                        pb::StoreRes response;
+                        auto ret = store_interact.send_request("add_peer", add_peer_request.add_peer, response);
                         DB_WARNING("send add peer leader: %s, request:%s, response:%s, ret: %d",
                                 leader.c_str(),
-                                add_peer_request.ShortDebugString().c_str(),
+                                add_peer_request.add_peer.ShortDebugString().c_str(),
                                 response.ShortDebugString().c_str(), ret);
                         bthread_usleep(1 * 1000 * 1000LL);
                     };
                     sub_bth.run(add_peer_fun);
                 }
+
                 sub_bth.join();
+                DB_WARNING("finish send add_peer request,dest:%s",add_peer_per_instance.first);
             };
             concur_bth.run(add_peer_fun_per_instance);
         }
@@ -673,7 +686,7 @@ void RegionManager::pre_process_remove_peer_for_store(const std::string& instanc
 }
 void RegionManager::pre_process_add_peer_for_store(const std::string& instance, 
                 const IdcInfo& instance_idc, pb::Status status, 
-                std::unordered_map<std::string, std::vector<pb::AddPeer>>& add_peer_requests) {
+                std::unordered_map<std::string, std::vector<AddPeerWithLeader>>& add_peer_requests) {
     std::vector<int64_t> region_ids;
     get_region_ids(instance, region_ids);
     for (auto& region_id : region_ids) {
@@ -733,8 +746,9 @@ void RegionManager::pre_process_add_peer_for_store(const std::string& instance,
         }
         add_peer.add_new_peers(new_instance);
         std::string leader = ptr_region->leader();
-        add_peer_requests[leader].push_back(add_peer);
-        DB_WARNING("add peer request: %s", add_peer.ShortDebugString().c_str());
+        AddPeerWithLeader add_peer_t = {add_peer,leader};
+        add_peer_requests[new_instance].emplace_back(add_peer_t);
+        DB_WARNING("add peer request: %s,leader: %s", add_peer.ShortDebugString().c_str(),leader.c_str());
     }
 }
 

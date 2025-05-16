@@ -20,6 +20,8 @@
 #include "log_entry_reader.h"
 #include "fs_rw_tocken_bucket.h"
 
+bvar::LatencyRecorder add_peer_write_sst;
+
 namespace baikaldb {
 DEFINE_int64(snapshot_timeout_min, 10, "snapshot_timeout_min : 10min");
 bool inline is_snapshot_data_file(const std::string& path) {
@@ -329,6 +331,11 @@ int SstWriterAdaptor::open() {
 ssize_t SstWriterAdaptor::write(const butil::IOBuf& data, off_t offset) {
     (void)offset;
     std::string path = _path;
+    TimeCost cost;
+    ScopeGuard dec([&cost] {
+        add_peer_write_sst << cost.get_time();
+    });
+
     if (!_is_meta) {
         path += std::to_string(_sst_idx);
     }

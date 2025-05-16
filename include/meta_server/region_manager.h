@@ -14,16 +14,16 @@
 
 #pragma once
 
-#include <unordered_map>
-#include <set>
-#include <mutex>
-#include "proto/meta.interface.pb.h"
-#include "proto/store.interface.pb.h"
+#include "cluster_manager.h"
 #include "meta_server.h"
 #include "meta_util.h"
+#include "proto/meta.interface.pb.h"
+#include "proto/store.interface.pb.h"
 #include "schema_manager.h"
-#include "cluster_manager.h"
 #include "table_manager.h"
+#include <mutex>
+#include <set>
+#include <unordered_map>
 
 namespace baikaldb {
 
@@ -45,6 +45,11 @@ struct RegionLearnerState {
 
 struct BinlogRegionState {
     std::map<std::string, int64_t> peer_oldest_timestamp_to_now_interval;
+};
+
+struct AddPeerWithLeader {
+    pb::AddPeer add_peer;
+    std::string leader;
 };
 
 typedef std::shared_ptr<RegionStateInfo> SmartRegionStateInfo;
@@ -82,7 +87,7 @@ public:
             std::vector<pb::RaftControlRequest>& requests); 
     void pre_process_add_peer_for_store(const std::string& instance, 
             const IdcInfo& instance_idc, pb::Status status,
-            std::unordered_map<std::string, std::vector<pb::AddPeer>>& add_peer_requests);
+            std::unordered_map<std::string, std::vector<AddPeerWithLeader>>& add_peer_requests);
     bool add_region_is_exist(int64_t table_id, const std::string& start_key, 
                                             const std::string& end_key, int64_t partition_id);
     bool binlog_peer_can_delete(const std::string& instance, int64_t region_id);
