@@ -389,6 +389,7 @@ int DDLPlanner::add_column_def(pb::SchemaInfo& table, parser::ColumnDef* column,
     }
     if (column->generate_expr != nullptr) {
         field->set_can_null(false);
+        _column_can_null[column->name->name.value] = false;
         if (!field->has_default_value()) {
             _ctx->stat_info.error_code = ER_ALTER_OPERATION_NOT_SUPPORTED;;
             _ctx->stat_info.error_msg << "generated column " << field->field_name() << " should have default value";
