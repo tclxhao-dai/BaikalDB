@@ -852,6 +852,7 @@ int SchemaManager::pre_process_for_create_table(const pb::MetaManagerRequest* re
         SET_REQUEST_TABLE_INFO(byte_size_per_record);
         SET_REQUEST_TABLE_INFO(replica_num);
         SET_REQUEST_TABLE_INFO(region_split_lines);
+        SET_REQUEST_TABLE_INFO(resource_tag);
         SET_REQUEST_TABLE_INFO(main_logical_room);
 
     #undef SET_REQUEST_TABLE_INFO
