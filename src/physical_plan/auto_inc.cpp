@@ -53,6 +53,9 @@ int AutoInc::update_auto_inc(SmartTable table_info_ptr,
                            bool use_backup,
                            std::vector<SmartRecord>& insert_records) {
     int64_t auto_id_count = 0;
+    // storage the last insert id temporary for rollback
+    client_conn->tmp_last_insert_id = client_conn->last_insert_id;
+    client_conn->insert_id = 0;
     int64_t max_id = 0;
     for (auto& record : insert_records) {
             auto field = record->get_field_by_tag(table_info_ptr->auto_inc_field_id);
@@ -65,6 +68,7 @@ int AutoInc::update_auto_inc(SmartTable table_info_ptr,
                 if (int_val > max_id) {
                     max_id = int_val;
                 }
+                client_conn->insert_id = int_val;
             }
     }
     auto field_info = table_info_ptr->get_field_ptr(table_info_ptr->auto_inc_field_id);
@@ -111,9 +115,7 @@ int AutoInc::update_auto_inc(SmartTable table_info_ptr,
         }
 
         if (auto_id_count == 0) {
-            if (max_id > 0) {
-                client_conn->last_insert_id = max_id;
-            }
+            // if all records have auto_inc value, we don't need to update last_insert_id
             return 0;
         }
         int64_t cost_time = cost.get_time();
@@ -123,7 +125,7 @@ int AutoInc::update_auto_inc(SmartTable table_info_ptr,
         start_id = response.start_id();
     }
     
-    client_conn->last_insert_id = start_id;
+    client_conn->tmp_last_insert_id = start_id;
     for (auto& record : insert_records) {
         auto field = record->get_field_by_tag(table_info_ptr->auto_inc_field_id);
         ExprValue value = record->get_value(field);

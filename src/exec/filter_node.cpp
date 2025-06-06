@@ -816,7 +816,7 @@ int FilterNode::arrow_steal_conjuncts(std::vector<arrow::compute::Expression>& c
             return ret;
         }
         conjuncts.emplace_back(_pruned_conjuncts[i]->arrow_expr());
-        DB_DEBUG("handle sub filter, idx: %d: %s", i, sub_exprs[i].ToString().c_str());
+        //DB_DEBUG("handle sub filter, idx: %d: %s", i, sub_exprs[i].ToString().c_str());
     }
     _pruned_conjuncts.clear();
     return 0;
