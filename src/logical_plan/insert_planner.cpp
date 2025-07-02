@@ -259,6 +259,12 @@ int InsertPlanner::parse_values_list(pb::InsertNode* node) {
         }
         if (_ctx->new_prepared) {
             for (size_t idx = 0; idx < (size_t)row_expr->children.size(); ++idx) {
+                if (_fields[idx].is_generated) {
+                    DB_WARNING("generated column %s don't support set value", _fields[idx].name.c_str());
+                    _ctx->stat_info.error_code = ER_INSERT_INFO;
+                    _ctx->stat_info.error_msg << "generated column " << _fields[idx].name << " don't support set value";
+                    return -1;
+                }
                 pb::Expr* expr = node->add_insert_values();
                 if (0 != create_expr_tree(row_expr->children[idx], *expr, CreateExprOptions())) {
                     DB_WARNING("create insertion value expr failed");
@@ -268,6 +274,13 @@ int InsertPlanner::parse_values_list(pb::InsertNode* node) {
                     DB_WARNING("expr is empty");
                     return -1;
                 }
+            }
+            for (auto& field : _default_fields) {
+                if (!field.is_generated) {
+                    continue;
+                }
+                node->add_field_ids(field.id);
+                node->add_insert_values()->CopyFrom(field.generate_expr);
             }
         } else {
             SmartRecord row = _factory->new_record(_table_id);
