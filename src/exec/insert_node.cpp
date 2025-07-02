@@ -186,15 +186,19 @@ int InsertNode::expr_optimize(QueryContext* ctx) {
         DB_WARNING("expr type_inferer fail:%d", ret);
         return ret;
     }
+    _expr_constant_ids.clear();
+    int32_t idx = -1;
     for (auto expr : _insert_values) {
+        idx += 1;
         ret = expr->expr_optimize();
         if (ret < 0) {
             DB_WARNING("expr type_inferer fail:%d", ret);
             return ret;
         }
         if (!expr->is_constant()) {
-            DB_WARNING("insert expr must be constant");
-            return -1;
+            // DB_WARNING("insert expr must be constant");
+            // return -1;
+            _expr_constant_ids.insert(idx);
         }
     }
     return 0;
@@ -239,8 +243,15 @@ int InsertNode::insert_values_for_prepared_stmt(std::vector<SmartRecord>& insert
     size_t row_size = _insert_values.size() / _selected_field_ids.size();
     for (size_t row_idx = 0; row_idx < row_size; ++row_idx) {
         SmartRecord row = _factory->new_record(_table_id);
+        std::vector<size_t>expr_field_ids;
+        std::vector<ExprNode*>expr_field_exprs;
         for (size_t col_idx = 0; col_idx < _selected_field_ids.size(); ++col_idx) {
             size_t idx = row_idx * _selected_field_ids.size() + col_idx;
+            if (_expr_constant_ids.count(idx) != 0) {
+                expr_field_ids.push_back(col_idx);
+                expr_field_exprs.push_back(_insert_values[idx]);
+                continue;
+            }
             ExprNode* expr = _insert_values[idx];
             if (0 != expr->open()) {
                 DB_WARNING("expr open fail");
@@ -262,6 +273,21 @@ int InsertNode::insert_values_for_prepared_stmt(std::vector<SmartRecord>& insert
             if (0 != _factory->fill_default_value(row, *field)) {
                     return -1;
             }
+        }
+        for (size_t idx = 0; idx < expr_field_ids.size(); ++idx) {
+            auto col_idx = expr_field_ids[idx];
+            auto &expr = expr_field_exprs[idx];
+            if (0 != expr->open()) {
+                DB_WARNING("expr open fail");
+                return -1;
+            }
+            if (0 != row->set_value(row->get_field_by_idx(insert_fields[col_idx]->pb_idx),
+                  expr->get_value_by_record(row.get()).cast_to(insert_fields[col_idx]->type))) {
+                DB_WARNING("fill insert value failed");
+                expr->close();
+                return -1;
+            }
+            expr->close();
         }
 
         //DB_WARNING("DEBUG row: %s", row->to_string().c_str());
