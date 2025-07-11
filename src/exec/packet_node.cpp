@@ -635,6 +635,8 @@ int PacketNode::open(RuntimeState* state) {
         return 0;
     }
     state->set_num_affected_rows(ret);
+    //set last_insert_id after exec ok,before pack_ok
+    _client->last_insert_id = _client->tmp_last_insert_id;
     if (op_type() != pb::OP_SELECT && op_type() != pb::OP_UNION) {
         pack_ok(state->num_affected_rows(), _client);
         return 0;
@@ -983,7 +985,11 @@ int PacketNode::pack_ok(int num_affected_rows, NetworkSocket* client) {
     if (_send_buf->_size > 0) {
         _send_buf->byte_array_clear();
     }
-    int64_t last_insert_id = (op_type() == pb::OP_INSERT || op_type() == pb::OP_UPDATE)? client->last_insert_id : 0;
+    int64_t last_insert_id = 0;
+    if (op_type() == pb::OP_INSERT || op_type() == pb::OP_UPDATE){
+        last_insert_id = client->insert_id > 0? _client->insert_id:_client->last_insert_id;
+    }
+    
 
     DataBuffer tmp_buf;
     tmp_buf.byte_array_append_length_coded_binary(0);

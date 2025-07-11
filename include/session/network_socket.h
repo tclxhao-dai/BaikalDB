@@ -15,6 +15,7 @@
 // Brief:  The defination of Network Socket and Socket Poll.
 #pragma once
 
+#include <cstdint>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <memory>
@@ -193,6 +194,8 @@ struct NetworkSocket {
     int             is_auth_result_send_partly;     // Auth result is sended partly,
                                                     // need to go on sending.
     int64_t         last_insert_id;
+    int64_t         tmp_last_insert_id = 0;         // tmp last insert id,if store exec ok,set last_insert_id = tmp_last_insert_id.
+    int64_t         insert_id = 0;                      // last_insert_id in ok pack
     int64_t         last_scan_region_id = -1;
     std::string     last_value = "";
     // string status.
