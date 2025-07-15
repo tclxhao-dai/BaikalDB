@@ -744,6 +744,19 @@ int SchemaManager::pre_process_for_create_table(const pb::MetaManagerRequest* re
             table_info.mutable_schema_conf()->set_select_index_by_cost(database_info.schema_conf().select_index_by_cost());
         }
     }
+    if (!database_info.binlog_infos().empty() && table_info.binlog_infos().empty()) {
+        table_info.mutable_binlog_infos()->CopyFrom(database_info.binlog_infos());
+        for (auto &binlog_info : *table_info.mutable_binlog_infos()) {
+            auto link_field_name = binlog_info.link_field().field_name();
+            if (field_name_map.count(link_field_name) == 0) {
+                DB_WARNING("database link field `%s` not found! change to `%s`", link_field_name.c_str(), primary_column_name[0].c_str());
+                binlog_info.mutable_link_field()->set_field_name(primary_column_name[0]);
+            }
+        }
+    }
+    if (!database_info.dists().empty() && table_info.dists().empty()) {
+        table_info.mutable_dists()->CopyFrom(database_info.dists());
+    }
     std::string resource_tag = request->table_info().resource_tag();
     boost::trim(resource_tag);
     //set default values if not specified by user
