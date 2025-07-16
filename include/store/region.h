@@ -669,6 +669,10 @@ public:
             const pb::StoreReq* request, 
             pb::StoreRes* response, 
             google::protobuf::Closure* done);
+    void recalc_num_table_lines(google::protobuf::RpcController* controller,
+            const pb::StoreReq* request, 
+            pb::StoreRes* response, 
+            google::protobuf::Closure* done);
     //开始做merge操作
     void start_process_merge(const pb::RegionMergeResponse& merge_response);
     //开始做split操作
@@ -1560,6 +1564,7 @@ private:
     SplitParam _split_param;
 
     std::mutex _legal_mutex;
+    std::mutex _apply_mutex;
     bool       _legal_region = true;
 
     uint64_t   _region_uuid = 0;
