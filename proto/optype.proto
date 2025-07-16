@@ -133,4 +133,5 @@ enum OpType {
     OP_UPDATE_CHARSET                       = 194;
     OP_MODIFY_USER                          = 195; //改user
     OP_MODIFY_LEARNER_RESOURCE_TAG          = 300;
+    OP_STORE_CALCULATE_NUM_TABLE_LINES      = 301;
 };

@@ -1609,6 +1609,9 @@ void Region::query(google::protobuf::RpcController* controller,
     } else if (request->op_type() == pb::OP_TXN_COMPLETE && request->force()) {
         exec_txn_complete(controller, request, response, done_guard.release());
         return;
+    } else if (request->op_type() == pb::OP_STORE_CALCULATE_NUM_TABLE_LINES) {
+        recalc_num_table_lines(controller, request, response, done_guard.release());
+        return;
     }
     const auto& remote_side_tmp = butil::endpoint2str(cntl->remote_side());
     const char* remote_side = remote_side_tmp.c_str();
@@ -3318,6 +3321,7 @@ void Region::do_apply(int64_t term, int64_t index, const pb::StoreReq& request, 
 }
 
 void Region::on_apply(braft::Iterator& iter) {
+    std::lock_guard<std::mutex> lock(_apply_mutex);
     for (; iter.valid(); iter.next()) {
         braft::Closure* done = iter.done();
         brpc::ClosureGuard done_guard(done);
@@ -4086,6 +4090,36 @@ void Region::adjustkey_and_add_version_query(google::protobuf::RpcController* co
     task.data = &data;
     task.done = c;
     _node.apply(task);    
+}
+
+void Region::recalc_num_table_lines(google::protobuf::RpcController* controller,
+                               const pb::StoreReq* request, 
+                               pb::StoreRes* response, 
+                               google::protobuf::Closure* done) {
+    brpc::ClosureGuard done_guard(done);
+    brpc::Controller* cntl = (brpc::Controller*)controller;
+    uint64_t log_id = 0;
+    if (cntl->has_log_id()) { 
+        log_id = cntl->log_id();
+    }
+    
+    if (is_leader()) {
+        response->set_errcode(pb::EXEC_FAIL);
+        response->set_errmsg("leader not allow reset num_table_lines");
+        return;
+    }
+    std::lock_guard<std::mutex> lock(_apply_mutex);
+
+    int64_t seek_table_lines = 0;
+    has_sst_data(&seek_table_lines);
+    _num_table_lines = seek_table_lines;
+    DB_WARNING("recalc region lines region_id: %ld, log_id:%lu, num_table_lines: %ld", _region_id, log_id, seek_table_lines);
+    rocksdb::WriteBatch batch;
+    ON_SCOPE_EXIT(([this, &batch]() {
+        _meta_writer->write_batch(&batch, _region_id);
+    }));
+    batch.Put(_meta_writer->get_handle(), _meta_writer->num_table_lines_key(_region_id), _meta_writer->encode_num_table_lines(_num_table_lines));
+    response->set_errcode(pb::SUCCESS);
 }
 
 void Region::adjustkey_and_add_version(const pb::StoreReq& request, 
