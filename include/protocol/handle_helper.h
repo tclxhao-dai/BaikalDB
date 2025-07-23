@@ -71,6 +71,8 @@ const std::string SQL_HANDLE_COPY_DB                    = "copy_db";
 const std::string SQL_HANDLE_LINK_BINLOG                = "link_binlog";
 // handle unlink_binlog json
 const std::string SQL_HANDLE_UNLINK_BINLOG              = "unlink_binlog";
+// handle modify_main_binlog_info json
+const std::string SQL_MODIFY_MAIN_BINLOG_INFO           = "modify_main_binlog";
 // handle instance_param resourceTagOrAddress json
 const std::string SQL_HANDLE_INSTANCE_PARAM             = "instance_param";
 // handle schema_conf tableName key value(bool)

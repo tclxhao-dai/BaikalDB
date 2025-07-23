@@ -219,6 +219,8 @@ public:
     void modify_field(const pb::MetaManagerRequest& request, const int64_t apply_index, braft::Closure* done);
     void link_binlog(const pb::MetaManagerRequest& request, const int64_t apply_index, braft::Closure* done);
     void unlink_binlog(const pb::MetaManagerRequest& request, const int64_t apply_index, braft::Closure* done);
+    void modify_main_binlog_info(const pb::MetaManagerRequest& request, const int64_t apply_index, braft::Closure* done);
+    bool unlink_all_binlog_infos(int64_t table_id, int64_t apply_index, braft::Closure* done);
     void set_index_hint_status(const pb::MetaManagerRequest& request, const int64_t apply_index, braft::Closure* done);
     void add_learner(const pb::MetaManagerRequest& request, const int64_t apply_index, braft::Closure* done);
     void drop_learner(const pb::MetaManagerRequest& request, const int64_t apply_index, braft::Closure* done);

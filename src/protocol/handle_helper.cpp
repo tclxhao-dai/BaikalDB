@@ -69,6 +69,8 @@ void HandleHelper::init() {
             this, std::placeholders::_1, std::placeholders::_2);
     _calls[SQL_HANDLE_UNLINK_BINLOG] = std::bind(&HandleHelper::_handle_binlog,
             this, std::placeholders::_1, std::placeholders::_2);
+    _calls[SQL_MODIFY_MAIN_BINLOG_INFO] = std::bind(&HandleHelper::_handle_binlog,
+            this, std::placeholders::_1, std::placeholders::_2);
     _calls[SQL_HANDLE_INSTANCE_PARAM] = std::bind(&HandleHelper::_handle_instance_param,
             this, std::placeholders::_1, std::placeholders::_2);
     _calls[SQL_HANDLE_SCHEMA_CONF] =  std::bind(&HandleHelper::_handle_schema_conf,
@@ -1572,6 +1574,8 @@ bool HandleHelper::_handle_binlog(const SmartSocket& client, const std::vector<s
         request.set_op_type(pb::OP_LINK_BINLOG);
     } else if (boost::iequals(split_vec[1], SQL_HANDLE_UNLINK_BINLOG)) {
         request.set_op_type(pb::OP_UNLINK_BINLOG);
+    } else if (boost::iequals(split_vec[1], SQL_MODIFY_MAIN_BINLOG_INFO)) {
+        request.set_op_type(pb::OP_MODIFY_MAIN_BINLOG_INFO);
     } else {
         DB_FATAL("json param invalid");
         client->state = STATE_ERROR;

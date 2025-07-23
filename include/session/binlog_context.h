@@ -77,6 +77,7 @@ struct PartitionBinlog {
     TimeCost              binlog_prewrite_time;
     uint64_t              partition_id = 0;
     int64_t               binlog_row_cnt = 0;
+    int64_t               binlog_size = 0;
     std::set<uint64_t>    signs;
     void calc_binlog_row_cnt() {
         binlog_row_cnt = 0;
@@ -152,7 +153,7 @@ public:
                                                   BinlogInfo& binlog_info,
                                                   int64_t partition_id);
     
-    void add_mutation(SmartPartitionBinlog& binlog_ptr,
+    bool add_mutation(SmartPartitionBinlog& binlog_ptr,
                     int64_t table_id,
                     const std::string& sql,
                     const uint64_t sign,

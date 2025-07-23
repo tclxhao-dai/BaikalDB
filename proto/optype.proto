@@ -155,4 +155,5 @@ enum OpType {
     OP_DROP_INVALID_PRIVILEGE               = 204; // 删除不存在的数据库/表的权限
     OP_MODIFY_LEARNER_RESOURCE_TAG          = 300;
     OP_STORE_CALCULATE_NUM_TABLE_LINES      = 301;
+    OP_MODIFY_MAIN_BINLOG_INFO              = 302; // 修改schemainfo.binlog_info
 };

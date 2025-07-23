@@ -225,6 +225,7 @@ void MetaServer::meta_manager(google::protobuf::RpcController* controller,
             || request->op_type() == pb::OP_DELETE_DDLWORK
             || request->op_type() == pb::OP_LINK_BINLOG
             || request->op_type() == pb::OP_UNLINK_BINLOG
+            || request->op_type() == pb::OP_MODIFY_MAIN_BINLOG_INFO
             || request->op_type() == pb::OP_SET_INDEX_HINT_STATUS
             || request->op_type() == pb::OP_UPDATE_INDEX_REGION_DDL_WORK
             || request->op_type() == pb::OP_SUSPEND_DDL_WORK

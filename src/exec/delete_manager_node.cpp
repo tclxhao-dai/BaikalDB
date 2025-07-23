@@ -140,7 +140,9 @@ int DeleteManagerNode::open_global_delete(RuntimeState* state) {
             return ret;
         }
     }
-    process_binlog(state, false);
+    if (process_binlog(state, false)) {
+        return -1;
+    }
     return affected_rows;
 }
 
