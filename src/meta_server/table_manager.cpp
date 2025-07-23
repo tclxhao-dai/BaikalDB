@@ -1117,6 +1117,11 @@ void TableManager::update_ttl_duration(const pb::MetaManagerRequest& request,
                                 braft::Closure* done) {
     update_table_internal(request, apply_index, done, 
         [](const pb::MetaManagerRequest& request, pb::SchemaInfo& mem_schema_pb, braft::Closure* done) {
+            if (request.table_info().ttl_duration() > 315576000LL || request.table_info().ttl_duration() <= 0) {
+                IF_DONE_SET_RESPONSE(done, pb::INPUT_PARAM_ERROR, "ttl not valid");
+                DB_WARNING("ttl not valid, req: %s", request.ShortDebugString().c_str());
+                return;
+            }
             if (mem_schema_pb.ttl_duration() > 0 && request.table_info().ttl_duration() > 0) {
                 // 只修改ttl
                 mem_schema_pb.set_ttl_duration(request.table_info().ttl_duration());
