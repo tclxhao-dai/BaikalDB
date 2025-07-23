@@ -134,4 +134,5 @@ enum OpType {
     OP_MODIFY_USER                          = 195; //改user
     OP_MODIFY_LEARNER_RESOURCE_TAG          = 300;
     OP_STORE_CALCULATE_NUM_TABLE_LINES      = 301;
+    OP_MODIFY_MAIN_BINLOG_INFO              = 302; // 修改schemainfo.binlog_info
 };

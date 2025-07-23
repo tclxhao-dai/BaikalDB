@@ -86,6 +86,7 @@ message BinlogDesc {
     repeated uint64    signs             = 11; 
     repeated int64     txn_ids           = 12; // capture请求binlog时使用
     optional bool      flash_back_read   = 13; // capture请求binlog时使用
+    optional int64     max_read_size     = 15; // 读取binlog时，最大读取的size
 };
 
 message BatchStoreReq {

@@ -33,6 +33,7 @@ DEFINE_int64(table_tombstone_gc_time_s, 3600 * 24 * 5, "time interval to clear t
 DEFINE_uint64(statistics_heart_beat_bytesize, 256 * 1024 * 1024, "default(256M)");
 DEFINE_int32(pre_split_threashold, 300, "pre_split_threashold for sync create table");
 DEFINE_bool(allow_link_table_rename, false, "allow rename table when table has linked binlog");
+DEFINE_bool(allow_link_table_drop, false, "allow drop table when table has linked binlog");
 
 void TableTimer::run() {
     DB_NOTICE("Table Timer run.");
@@ -173,6 +174,7 @@ void TableManager::update_table_internal(const pb::MetaManagerRequest& request, 
 void TableManager::create_table(const pb::MetaManagerRequest& request, const int64_t apply_index, braft::Closure* done) {
     auto& table_info = const_cast<pb::SchemaInfo&>(request.table_info());
     const auto binlog_infos = table_info.binlog_infos();
+    table_info.clear_binlog_infos();
     table_info.set_timestamp(time(NULL));
     table_info.set_version(1);
     
@@ -389,7 +391,9 @@ void TableManager::create_table(const pb::MetaManagerRequest& request, const int
         _table_scheduling_infos.Modify(call_func, table_mem.main_table_id);
     }
     if (done) {
-        send_link_binlog_request(table_info, binlog_infos);
+        if (!table_mem.is_binlog) {
+            send_link_binlog_request(table_info, binlog_infos);
+        }
         ((MetaServerClosure*)done)->whether_level_table = table_mem.whether_level_table;
         ((MetaServerClosure*)done)->create_table_ret = ret;
     }
@@ -473,15 +477,29 @@ void TableManager::drop_table(const pb::MetaManagerRequest& request, const int64
         IF_DONE_SET_RESPONSE(done, pb::INPUT_PARAM_ERROR, "table is doing ddl");
         return;
     }
-    if (check_table_is_linked(drop_table_id)) {
-        DB_WARNING("table is linked, request:%s", request.ShortDebugString().c_str());
-        IF_DONE_SET_RESPONSE(done, pb::INPUT_PARAM_ERROR, "table is linked binlog table");
-        return;
-    }
     std::vector<std::string> delete_rocksdb_keys;
     std::vector<std::string> write_rocksdb_keys;
     std::vector<std::string> write_rocksdb_values;
     pb::SchemaInfo schema_info = _table_info_map[drop_table_id].schema_pb;
+    auto &table_mem = _table_info_map[drop_table_id];
+    auto has_link = check_table_is_linked(drop_table_id);
+    if (table_mem.is_binlog && has_link) {
+        DB_WARNING("binlog table is linked, request:%s", request.ShortDebugString().c_str());
+        IF_DONE_SET_RESPONSE(done, pb::INPUT_PARAM_ERROR, "table is linked binlog table");
+        return;
+    }
+    if (check_table_is_linked(drop_table_id) && !FLAGS_allow_link_table_drop) {
+        DB_WARNING("table is linked, request:%s", request.ShortDebugString().c_str());
+        IF_DONE_SET_RESPONSE(done, pb::INPUT_PARAM_ERROR, "table is linked binlog table");
+        return;
+    } 
+    if (check_table_is_linked(drop_table_id)) {
+        if (!unlink_all_binlog_infos(drop_table_id, apply_index, done)) {
+            DB_WARNING("unllink table's binlog_infos is fail, request:%s", request.ShortDebugString().c_str());
+            IF_DONE_SET_RESPONSE(done, pb::INTERNAL_ERROR, "unllink table's binlog_infos is fail");
+            return;
+        }
+    }
     schema_info.set_deleted(true);
     schema_info.set_timestamp(time(NULL));
     std::string drop_table_value;
@@ -3622,6 +3640,144 @@ void TableManager::delete_ddlwork(const pb::MetaManagerRequest& request, braft::
     DDLManager::get_instance()->delete_ddlwork(request, done);
 }
 
+bool TableManager::unlink_all_binlog_infos(int64_t table_id, int64_t apply_index, braft::Closure* done) {
+    if (_table_info_map.find(table_id) == _table_info_map.end()) {
+        DB_WARNING("table not in table_info_map, table_id: %ld",table_id);
+        return false;
+    }
+    auto &table_mem = _table_info_map[table_id];
+    pb::SchemaInfo mem_schema_pb =  _table_info_map[table_id].schema_pb;
+    std::vector<pb::SchemaInfo> schema_infos{mem_schema_pb};
+    std::vector<int64_t> table_id_list{table_id};
+    mem_schema_pb.clear_binlog_info();
+    mem_schema_pb.clear_binlog_infos();
+    mem_schema_pb.clear_link_field();
+    mem_schema_pb.clear_partition_is_same_hint();
+
+    for (auto binlog_table_id : table_mem.binlog_ids) {
+        if (_table_info_map.find(binlog_table_id) == _table_info_map.end()) {
+            continue;
+        }
+        auto& binlog_table_mem =  _table_info_map[binlog_table_id];
+        if (!binlog_table_mem.is_binlog) { // || binlog_table_mem.binlog_target_ids.count(table_id) == 0) {
+            DB_FATAL("table is not binlog or not correct binlog table, table_id: %ld, binlog_table_id:%ld", table_id, binlog_table_id);
+            return false;
+        }
+        binlog_table_mem.binlog_target_ids.erase(table_id);
+
+        pb::SchemaInfo binlog_mem_schema_pb =  _table_info_map[binlog_table_id].schema_pb;
+        auto binlog_binlog_info = binlog_mem_schema_pb.mutable_binlog_info();
+        auto target_iter = binlog_binlog_info->mutable_target_table_ids()->begin();
+        for (; target_iter != binlog_binlog_info->mutable_target_table_ids()->end();) {
+            if (*target_iter == table_id) {
+                binlog_binlog_info->mutable_target_table_ids()->erase(target_iter);
+            } else {
+                target_iter++;
+            }
+        }
+        binlog_mem_schema_pb.set_version(binlog_mem_schema_pb.version() + 1);
+
+        set_table_pb(binlog_mem_schema_pb);
+
+        schema_infos.push_back(binlog_mem_schema_pb);
+        table_id_list.push_back(binlog_table_id);
+    }
+    put_incremental_schemainfo(apply_index, schema_infos);
+    table_mem.binlog_ids.clear();
+    table_mem.is_linked = false;
+    for (size_t i = 0; i < table_id_list.size(); ++i) {
+        auto ret = update_schema_for_rocksdb(table_id, mem_schema_pb, done);
+        if (ret < 0) {
+            DB_FATAL("write db fail when unlink all binlog_infos!");
+            return false;
+        }
+    }
+    return true;
+}
+
+void TableManager::modify_main_binlog_info(const pb::MetaManagerRequest& request, const int64_t apply_index, braft::Closure* done) {
+    DB_DEBUG("modify main binlog info, request:%s", request.ShortDebugString().c_str());
+    int64_t table_id;
+    if (check_table_exist(request.table_info(), table_id) != 0) {
+        DB_WARNING("check table exist fail, request:%s", request.ShortDebugString().c_str());
+        IF_DONE_SET_RESPONSE(done, pb::INPUT_PARAM_ERROR, "table not exist");
+        return;
+    }
+    if (!request.has_binlog_info()) {
+        DB_WARNING("check binlog info fail, request:%s", request.ShortDebugString().c_str());
+        IF_DONE_SET_RESPONSE(done, pb::INPUT_PARAM_ERROR, "no binlog info");
+        return;
+    }
+    int64_t binlog_table_id;
+    if (check_table_exist(request.binlog_info(), binlog_table_id) != 0) {
+        DB_WARNING("check binlog table exist fail, request:%s", request.ShortDebugString().c_str());
+        IF_DONE_SET_RESPONSE(done, pb::INPUT_PARAM_ERROR, "binlog table not exist");
+        return;
+    }
+    if (_table_info_map.find(table_id) == _table_info_map.end() ||
+        _table_info_map.find(binlog_table_id) == _table_info_map.end()) {
+        DB_WARNING("table not in table_info_map, request:%s", request.DebugString().c_str());
+        IF_DONE_SET_RESPONSE(done, pb::INPUT_PARAM_ERROR, "table not in table_info_map");
+        return;
+    }
+    //check内存，更新内存
+    auto& table_mem =  _table_info_map[table_id];
+    auto& binlog_table_mem =  _table_info_map[binlog_table_id];
+    if (table_mem.binlog_ids.count(binlog_table_id) == 0) {
+        DB_WARNING("table not linked, request:%s", request.DebugString().c_str());
+        IF_DONE_SET_RESPONSE(done, pb::INPUT_PARAM_ERROR, "table not linked");
+        return;
+    }
+
+    pb::SchemaInfo mem_schema_pb =  _table_info_map[table_id].schema_pb;
+    if (mem_schema_pb.has_binlog_info() && mem_schema_pb.binlog_info().has_binlog_table_id()) {
+        if (mem_schema_pb.binlog_info().binlog_table_id() == binlog_table_id) {
+            DB_WARNING("link table %ld already is main binlog", binlog_table_id);
+            IF_DONE_SET_RESPONSE(done, pb::INPUT_PARAM_ERROR, "table already linked");
+            return;
+        }
+        auto binlog_info = mem_schema_pb.add_binlog_infos();
+        binlog_info->CopyFrom(mem_schema_pb.binlog_info());
+        if (mem_schema_pb.has_link_field()) {
+            binlog_info->mutable_link_field()->CopyFrom(mem_schema_pb.link_field());
+        }
+        if (mem_schema_pb.has_partition_is_same_hint()) {
+            binlog_info->set_partition_is_same_hint(mem_schema_pb.partition_is_same_hint());
+        }
+    }
+
+    auto binlog_iter = mem_schema_pb.mutable_binlog_infos()->begin();
+    for (; binlog_iter != mem_schema_pb.mutable_binlog_infos()->end(); ++binlog_iter) {
+        if ((*binlog_iter).binlog_table_id() == binlog_table_id) {
+            mem_schema_pb.mutable_binlog_info()->CopyFrom(*binlog_iter);
+            if ((*binlog_iter).has_link_field()) {
+                mem_schema_pb.mutable_link_field()->CopyFrom((*binlog_iter).link_field());
+            } else {
+                mem_schema_pb.clear_link_field();
+            }
+            if ((*binlog_iter).has_partition_is_same_hint()) {
+                mem_schema_pb.set_partition_is_same_hint((*binlog_iter).partition_is_same_hint());
+            } else {
+                mem_schema_pb.clear_partition_is_same_hint();
+            }
+            mem_schema_pb.mutable_binlog_infos()->erase(binlog_iter);
+            break;
+        }
+    }
+    mem_schema_pb.set_version(mem_schema_pb.version() + 1);
+    set_table_pb(mem_schema_pb);
+    std::vector<pb::SchemaInfo> schema_infos{mem_schema_pb};
+    put_incremental_schemainfo(apply_index, schema_infos);
+
+    auto ret = update_schema_for_rocksdb(table_id, mem_schema_pb, done);
+    if (ret < 0) {
+        IF_DONE_SET_RESPONSE(done, pb::INTERNAL_ERROR, "write db fail");
+        return;
+    }
+
+    IF_DONE_SET_RESPONSE(done, pb::SUCCESS, "success");
+}
+
 void TableManager::link_binlog(const pb::MetaManagerRequest& request, const int64_t apply_index, braft::Closure* done) {
     DB_DEBUG("link binlog, request:%s", request.ShortDebugString().c_str());
     int64_t table_id;
@@ -3715,6 +3871,7 @@ void TableManager::link_binlog(const pb::MetaManagerRequest& request, const int6
             mem_schema_pb.mutable_link_field()->CopyFrom(link_field);
         }
         mem_schema_pb.set_partition_is_same_hint(partition_is_same_hint);
+        binlog_info->mutable_link_field()->CopyFrom(link_field);
     }
     mem_schema_pb.set_version(mem_schema_pb.version() + 1);
     set_table_pb(mem_schema_pb);
@@ -3781,7 +3938,7 @@ void TableManager::unlink_binlog(const pb::MetaManagerRequest& request, const in
         IF_DONE_SET_RESPONSE(done, pb::INPUT_PARAM_ERROR, "table not linked");
         return;
     }
-    if (!binlog_table_mem.is_binlog || binlog_table_mem.binlog_target_ids.count(table_id) == 0) {
+    if (!binlog_table_mem.is_binlog) { // || binlog_table_mem.binlog_target_ids.count(table_id) == 0) {
         DB_WARNING("table is not binlog or not correct binlog table, request:%s", request.DebugString().c_str());
         IF_DONE_SET_RESPONSE(done, pb::INPUT_PARAM_ERROR, "table is not binlog");
         return;
@@ -3790,18 +3947,35 @@ void TableManager::unlink_binlog(const pb::MetaManagerRequest& request, const in
     binlog_table_mem.binlog_target_ids.erase(table_id);
 
     pb::SchemaInfo mem_schema_pb =  _table_info_map[table_id].schema_pb;
-    auto binlog_info = mem_schema_pb.mutable_binlog_info();
-    if (binlog_info->binlog_table_id() == binlog_table_id) {
-        binlog_info->clear_binlog_table_id();
+    if (mem_schema_pb.has_binlog_info() && mem_schema_pb.binlog_info().binlog_table_id() == binlog_table_id) {
         mem_schema_pb.clear_link_field();
+        mem_schema_pb.clear_binlog_info();
     }
     auto binlog_iter = mem_schema_pb.mutable_binlog_infos()->begin();
-    for (; binlog_iter != mem_schema_pb.mutable_binlog_infos()->end(); ++binlog_iter) {
+    for (; binlog_iter != mem_schema_pb.mutable_binlog_infos()->end();) {
         if ((*binlog_iter).binlog_table_id() == binlog_table_id) {
-            mem_schema_pb.mutable_binlog_infos()->erase(binlog_iter);
-            break;
+            binlog_iter = mem_schema_pb.mutable_binlog_infos()->erase(binlog_iter);
+        } else {
+            binlog_iter ++;
         }
     }
+    // binlog_info为空切binlog_infos不为空，将binlog_infos中的一个挪到binlog_info中
+    if (!mem_schema_pb.has_binlog_info() && mem_schema_pb.binlog_infos_size() > 0) {
+        binlog_iter = mem_schema_pb.mutable_binlog_infos()->begin();
+        mem_schema_pb.mutable_binlog_info()->CopyFrom((*binlog_iter));
+        if ((*binlog_iter).has_link_field()) {
+            mem_schema_pb.mutable_link_field()->CopyFrom((*binlog_iter).link_field());
+        } else {
+            mem_schema_pb.clear_link_field();
+        }
+        if ((*binlog_iter).has_partition_is_same_hint()) {
+            mem_schema_pb.set_partition_is_same_hint((*binlog_iter).partition_is_same_hint());
+        } else {
+            mem_schema_pb.clear_partition_is_same_hint();
+        }
+        mem_schema_pb.mutable_binlog_infos()->erase(binlog_iter);
+    }
+
     if (table_mem.binlog_ids.empty()) {
         table_mem.is_linked = false;
     }

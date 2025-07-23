@@ -31,6 +31,10 @@ DECLARE_int64(retry_interval_us);
 DECLARE_int32(fetcher_connect_timeout);
 DECLARE_int32(fetcher_request_timeout);
 DEFINE_int64(binlog_alarm_time_s, 30, "alarm, > binlog_alarm_time_s from prewrite to commit");
+DEFINE_int32(binlog_mutation_max_rows, -1, "binlog.mutation max rows");
+DEFINE_int64(binlog_mutation_max_size, -1, "binlog.mutation max size");
+BRPC_VALIDATE_GFLAG(binlog_mutation_max_rows, brpc::PassValidate);
+BRPC_VALIDATE_GFLAG(binlog_mutation_max_size, brpc::PassValidate);
 int TsoFetcher::init() {
     int ret = RepeatedTimerTask::init(tso::update_timestamp_interval_ms);
     if (ret != 0) {
@@ -146,7 +150,7 @@ SmartPartitionBinlog BinlogContext::get_partition_binlog_ptr(int64_t binlog_id,
     }
 }
 
-void BinlogContext::add_mutation(SmartPartitionBinlog& binlog_ptr,
+bool BinlogContext::add_mutation(SmartPartitionBinlog& binlog_ptr,
                     int64_t table_id,
                     const std::string& sql,
                     const uint64_t sign,
@@ -162,19 +166,25 @@ void BinlogContext::add_mutation(SmartPartitionBinlog& binlog_ptr,
     mutation->set_sign(sign);
     DB_DEBUG("sql:%s type:%s %ld,%ld", sql.c_str(), pb::MutationType_Name(type).c_str(), retrun_records.size(),
         retrun_records.size());
+    int64_t &rows = binlog_ptr->binlog_row_cnt;
+    int64_t &binlog_size = binlog_ptr->binlog_size;
     switch (type) {
         case pb::MutationType::DELETE: {
             if (all_in_one) {
                 for (auto& pair : retrun_records) {
+                    rows += pair.second.size();
                     for (auto& str_record : pair.second) {
                         mutation->add_deleted_rows(str_record);
+                        binlog_size += str_record.size();
                     }
                 }
             } else {
                 auto iter = retrun_records.find(partition_id);
                 if (iter != retrun_records.end()) {
+                    rows += iter->second.size();
                     for (auto& str_record : iter->second) {
                         mutation->add_deleted_rows(str_record);
+                        binlog_size += str_record.size();
                     }
                 }
             }
@@ -183,15 +193,19 @@ void BinlogContext::add_mutation(SmartPartitionBinlog& binlog_ptr,
         case pb::MutationType::INSERT: {
             if (all_in_one) {
                 for (auto& pair : retrun_records) {
+                    rows += pair.second.size();
                     for (auto& str_record : pair.second) {
                         mutation->add_insert_rows(str_record);
+                        binlog_size += str_record.size();
                     }
                 }
             } else {
                 auto iter = retrun_records.find(partition_id);
                 if (iter != retrun_records.end()) {
+                    rows += iter->second.size();
                     for (auto& str_record : iter->second) {
                         mutation->add_insert_rows(str_record);
+                        binlog_size += str_record.size();
                     }
                 }
             }
@@ -200,26 +214,34 @@ void BinlogContext::add_mutation(SmartPartitionBinlog& binlog_ptr,
         case pb::MutationType::UPDATE: {
             if (all_in_one) {
                 for (auto& pair : retrun_records) {
+                    rows += pair.second.size();
                     for (auto& str_record : pair.second) {
                         mutation->add_insert_rows(str_record);
+                        binlog_size += str_record.size();
                     }
                 }
                 for (auto& pair : retrun_old_records) {
+                    rows += pair.second.size();
                     for (auto& str_record : pair.second) {
                         mutation->add_deleted_rows(str_record);
+                        binlog_size += str_record.size();
                     }
                 }
             } else {
                 auto iter = retrun_records.find(partition_id);
                 if (iter != retrun_records.end()) {
+                    rows += iter->second.size();
                     for (auto& str_record : iter->second) {
                         mutation->add_insert_rows(str_record);
+                        binlog_size += str_record.size();
                     }
                 }
                 auto old_iter = retrun_old_records.find(partition_id);
                 if (old_iter != retrun_old_records.end()) {
+                    rows += old_iter->second.size();
                     for (auto& str_record : old_iter->second) {
                         mutation->add_deleted_rows(str_record);
+                        binlog_size += str_record.size();
                     }
                 }
             }
@@ -228,6 +250,15 @@ void BinlogContext::add_mutation(SmartPartitionBinlog& binlog_ptr,
         default:
             break;
     } 
+    if (FLAGS_binlog_mutation_max_rows > 0 && rows > FLAGS_binlog_mutation_max_rows) {
+        DB_WARNING("binlog rows > %d, parition_id: %d", FLAGS_binlog_mutation_max_rows, partition_id);
+        return false;
+    }
+    if (FLAGS_binlog_mutation_max_size > 0 && binlog_size > FLAGS_binlog_mutation_max_size) {
+        DB_WARNING("binlog size > %d, parition_id: %d", FLAGS_binlog_mutation_max_size, partition_id);
+        return false;
+    }
+    return true;
 }
 
 int BinlogContext::add_binlog_values(SmartTable& table_info,
@@ -264,8 +295,10 @@ int BinlogContext::add_binlog_values(SmartTable& table_info,
             binlog_ptr->db_tables.insert(table_info->name);
             binlog_ptr->signs.insert(sign);
             _partition_keys[0] = 0;
-            add_mutation(binlog_ptr, table_info->id, sql, sign, type, 0, true,
-                retrun_records, retrun_old_records);
+            if (!add_mutation(binlog_ptr, table_info->id, sql, sign, type, 0, true,
+                retrun_records, retrun_old_records)) {
+                return -1;
+            }
         } else if (table_info->partition_num == binlog_info.binlog_table_info->partition_num
             && binlog_info.partition_is_same_hint) { // 分区方式一样
             SmartRecord record_template = _factory->new_record(table_info->id);
@@ -304,8 +337,10 @@ int BinlogContext::add_binlog_values(SmartTable& table_info,
                 }
                 binlog_ptr->db_tables.insert(table_info->name);
                 binlog_ptr->signs.insert(sign);
-                add_mutation(binlog_ptr, table_info->id, sql, sign, type, partition_id, false,
-                    retrun_records, retrun_old_records);
+                if (!add_mutation(binlog_ptr, table_info->id, sql, sign, type, partition_id, false,
+                    retrun_records, retrun_old_records)) {
+                    return -1;
+                }
             }
         } else {
             std::map<int64_t, std::vector<std::string>>  return_str_records;
@@ -368,8 +403,10 @@ int BinlogContext::add_binlog_values(SmartTable& table_info,
                 }
                 binlog_ptr->db_tables.insert(table_info->name);
                 binlog_ptr->signs.insert(sign);
-                add_mutation(binlog_ptr, table_info->id, sql, sign, type, partition_id, false,
-                    return_str_records, return_str_old_records);
+                if (!add_mutation(binlog_ptr, table_info->id, sql, sign, type, partition_id, false,
+                    return_str_records, return_str_old_records)) {
+                    return -1;
+                }
             }
         }
         ++iter;
@@ -427,8 +464,10 @@ int BinlogContext::add_binlog_values(SmartTable& table_info,
             }
             binlog_ptr->db_tables.insert(table_info->name);
             binlog_ptr->signs.insert(sign);
-            add_mutation(binlog_ptr, table_info->id, sql, sign, type, 0, true,
-                return_str_records, return_str_old_records);
+            if (!add_mutation(binlog_ptr, table_info->id, sql, sign, type, 0, true,
+                return_str_records, return_str_old_records)) {
+                return -1;
+            }
         } else {
             std::map<int64_t, std::vector<std::string>>  return_str_records;
             std::map<int64_t, std::vector<std::string>>  return_str_old_records;
@@ -473,8 +512,10 @@ int BinlogContext::add_binlog_values(SmartTable& table_info,
                 }
                 binlog_ptr->db_tables.insert(table_info->name);
                 binlog_ptr->signs.insert(sign);
-                add_mutation(binlog_ptr, table_info->id, sql, sign, type, partition_id, false,
-                    return_str_records, return_str_old_records);
+                if (!add_mutation(binlog_ptr, table_info->id, sql, sign, type, partition_id, false,
+                    return_str_records, return_str_old_records)) {
+                    return -1;
+                }
             }
         }
         ++iter;

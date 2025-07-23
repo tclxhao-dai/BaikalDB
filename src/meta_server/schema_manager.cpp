@@ -123,6 +123,7 @@ void SchemaManager::process_schema_info(google::protobuf::RpcController* control
     case pb::OP_DROP_LEARNER:
     case pb::OP_LINK_BINLOG:
     case pb::OP_UNLINK_BINLOG:
+    case pb::OP_MODIFY_MAIN_BINLOG_INFO:
     case pb::OP_SET_INDEX_HINT_STATUS:
     case pb::OP_UPDATE_MAIN_LOGICAL_ROOM:
     case pb::OP_UPDATE_TABLE_COMMENT:
@@ -623,6 +624,7 @@ int SchemaManager::pre_process_for_create_table(const pb::MetaManagerRequest* re
     }
     std::set<std::string> indexs_name;
     std::string primary_index_name;
+    std::vector<std::string> primary_column_name;
     //校验只有普通索引和uniq 索引可以设置全局属性
     for (auto& index_info : request->table_info().indexs()) {
         if (index_info.is_global() 
@@ -641,7 +643,16 @@ int SchemaManager::pre_process_for_create_table(const pb::MetaManagerRequest* re
             primary_index_name = index_info.index_name();
             DB_NOTICE("set primary index name %s", primary_index_name.c_str());
         }
+        if (index_info.index_type() == pb::I_PRIMARY) {
+            for (auto& field : index_info.field_names()) {
+                primary_column_name.push_back(field);
+            }
+        }
         indexs_name.insert(index_info.index_name());
+    }
+    if (primary_column_name.size() == 0) {
+        DB_WARNING("table %s primry column not fould!", table_info.table_name().c_str());
+        return -1;
     }
     // 分区表多region时，设置多split_key
     if (table_info.has_region_num() && request->table_info().split_keys_size() == 0) {
@@ -681,9 +692,10 @@ int SchemaManager::pre_process_for_create_table(const pb::MetaManagerRequest* re
             }
         }
     }
-
+    std::set<std::string>field_name_map;
     for (auto i = 0; i < request->table_info().fields_size(); ++i) {
         auto field = request->table_info().fields(i);
+        field_name_map.insert(field.field_name());
         if (!field.has_mysql_type() || !field.has_field_name()) {
             ERROR_SET_RESPONSE(response, pb::INPUT_PARAM_ERROR,
                             "missing field id (type or name)", request->op_type(), log_id);         

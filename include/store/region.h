@@ -260,6 +260,9 @@ enum GetMode {
     int multiget(std::map<int64_t, std::string>& start_binlog_map);
     int seek(std::map<int64_t, std::string>& start_binlog_map);
     void print_log();
+    void set_max_read_size(int64_t max_read_size) {
+        _max_read_size = max_read_size;
+    };
 
 private:
     int64_t _region_id = 0;
@@ -279,6 +282,7 @@ private:
     int64_t _fake_binlog_cnt = 0;
     int64_t _first_commit_ts = -1;
     int64_t _last_commit_ts = -1;
+    int64_t _max_read_size = -1;
     std::map<int64_t, int64_t> _commit_start_map;
     std::map<int64_t, std::string> _start_binlog_map;
     std::map<int64_t, std::string> _fake_binlog_map;

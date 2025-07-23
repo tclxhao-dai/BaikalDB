@@ -20,6 +20,7 @@
 #include "query_context.h"
 
 namespace baikaldb {
+DECLARE_int32(binlog_mutation_max_rows);
 int UpdateManagerNode::init(const pb::PlanNode& node) {
     int ret = 0;
     ret = ExecNode::init(node);
@@ -205,7 +206,9 @@ int UpdateManagerNode::open(RuntimeState* state) {
     }
     if (open_binlog) {
         state->set_open_binlog(true);
-        process_binlog(state, false);
+        if (process_binlog(state, false)) {
+            return -1;
+        }
     }
     return ret;
 }

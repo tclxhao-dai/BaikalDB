@@ -335,7 +335,9 @@ int InsertManagerNode::open(RuntimeState* state) {
         ret =  basic_insert(state);
     }
     if (ret >=0) {
-        process_binlog(state, false);
+        if(process_binlog(state, false)) {
+            return -1;
+        }
     }
     return ret;
 }
