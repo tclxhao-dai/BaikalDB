@@ -28,6 +28,12 @@
 namespace baikaldb {
 DECLARE_bool(need_verify_ddl_permission);
 DECLARE_bool(use_read_index);
+DECLARE_int32(query_quota_per_user);
+DECLARE_int32(single_store_concurrency);
+DECLARE_int64(max_select_rows);
+DECLARE_int32(max_select_region_count);
+DECLARE_int32(sql_exec_timeout);
+
 inline uint32_t get_op_require_acl(pb::OpType op_type) {
     switch (op_type) {
         case pb::OP_SELECT:
@@ -74,14 +80,48 @@ inline uint32_t get_op_require_acl(pb::OpType op_type) {
     }
 }
 
+struct UserConf {
+    int64_t single_store_concurrency = -1 ;
+    int64_t query_timeout = -1;
+    int64_t max_select_region_count = -1;
+    int64_t max_select_rows = -1;
+    bool    update_bvars = true;
+    bool    print_agg_sql = true;
+};
+
 struct UserInfo {
 public:
     UserInfo() : query_count(0) {
+        query_quota = FLAGS_query_quota_per_user;
     }
 
     ~UserInfo() {}
 
     bool is_exceed_quota();
+    int32_t max_select_region_count() {
+        if (user_conf.max_select_region_count > 0) {
+            return user_conf.max_select_region_count;
+        }
+        return FLAGS_max_select_region_count;
+    }
+    int64_t query_timeout() {
+        if (user_conf.query_timeout > 0) {
+            return user_conf.query_timeout;
+        }
+        return FLAGS_sql_exec_timeout;
+    }
+    int32_t max_select_rows() {
+        if (user_conf.max_select_rows > 0) {
+            return user_conf.max_select_rows;
+        }
+        return FLAGS_max_select_rows;
+    }
+    int32_t single_store_concurrency() {
+        if (user_conf.single_store_concurrency > 0) {
+            return user_conf.single_store_concurrency;
+        }
+        return FLAGS_single_store_concurrency;
+    }
     bool connection_inc() {
         bool res = false;
         std::lock_guard<std::mutex> guard(conn_mutex);
@@ -225,5 +265,6 @@ public:
     std::set<int64_t> all_database;
     std::unordered_set<std::string> auth_ip_set;
     std::string resource_tag;
+    UserConf user_conf;
 };
 } // namespace baikaldb

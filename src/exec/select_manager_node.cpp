@@ -235,8 +235,9 @@ int SelectManagerNode::fetcher_store_run(RuntimeState* state, ExecNode* exec_nod
         return -1;
     }
     auto ctx = state->client_conn()->query_ctx;
-    if (ctx->is_select && !scan_node->has_index() && FLAGS_max_select_region_count > 0
-            && main_scan_index->region_infos.size() > FLAGS_max_select_region_count
+    auto user_info = state->client_conn()->user_info;
+    if (ctx->is_select && !scan_node->has_index() && user_info->max_select_region_count() > 0
+            && main_scan_index->region_infos.size() > user_info->max_select_region_count()
             && scan_node->get_limit() == -1) {
         ctx->stat_info.error_code = ER_SQL_REFUSE;
         ctx->stat_info.error_msg << "sql is forbid, reason is not use index and region count="

@@ -355,11 +355,13 @@ void StateMachine::_print_query_time(SmartSocket client) {
             stat_info->num_returned_rows : stat_info->num_affected_rows;
     }
 
+    auto user_info = client->user_info;
+
     if (ctx->mysql_cmd == COM_QUERY
                 || ctx->mysql_cmd == COM_STMT_EXECUTE) {
         // PREPARE不应该统计进去
         // 降级去备库后不再统计，table_id序列不一样，防止再次判断降级流程
-        if (!ctx->use_backup) {
+        if (!ctx->use_backup && user_info->user_conf.print_agg_sql) {
             int64_t index_id = 0; //0 没有使用索引，否则选index_ids中的第一个，对于join涉及多个索引可能展示不完整 TODO
             int64_t err_count = stat_info->error_code != 1000;
             if (ctx->index_ids.size() > 1) {
@@ -381,31 +383,33 @@ void StateMachine::_print_query_time(SmartSocket client) {
                     field_range_type, err_count, stat_info->sign, subquery_signs);
         }
 
-        if (op_type == pb::OP_SELECT || op_type == pb::OP_UNION) {
-            select_time_cost << stat_info->total_time;
-            std::unique_lock<std::mutex> lock(_mutex);
-            if (select_by_users.find(client->username) == select_by_users.end()) {
-                select_by_users[client->username].reset(new bvar::LatencyRecorder("select_" + client->username));
+        if (user_info->user_conf.update_bvars) {
+            if (op_type == pb::OP_SELECT || op_type == pb::OP_UNION) {
+                select_time_cost << stat_info->total_time;
+                std::unique_lock<std::mutex> lock(_mutex);
+                if (select_by_users.find(client->username) == select_by_users.end()) {
+                    select_by_users[client->username].reset(new bvar::LatencyRecorder("select_" + client->username));
+                }
+                (*select_by_users[client->username]) << stat_info->total_time;
+            } else if (op_type == pb::OP_INSERT ||
+                    op_type == pb::OP_UPDATE ||
+                    op_type == pb::OP_DELETE) {
+                dml_time_cost << stat_info->total_time;
+                std::unique_lock<std::mutex> lock(_mutex);
+                if (dml_by_users.find(client->username) == dml_by_users.end()) {
+                    dml_by_users[client->username].reset(new bvar::LatencyRecorder("dml_" + client->username));
+                }
+                (*dml_by_users[client->username]) << stat_info->total_time;
             }
-            (*select_by_users[client->username]) << stat_info->total_time;
-        } else if (op_type == pb::OP_INSERT ||
-                op_type == pb::OP_UPDATE ||
-                op_type == pb::OP_DELETE) {
-            dml_time_cost << stat_info->total_time;
-            std::unique_lock<std::mutex> lock(_mutex);
-            if (dml_by_users.find(client->username) == dml_by_users.end()) {
-                dml_by_users[client->username].reset(new bvar::LatencyRecorder("dml_" + client->username));
+            if (stat_info->error_code != 1000) {
+                sql_error << 1;
+                if (stat_info->error_code == 10004) {
+                    exec_sql_error << 1;
+                }
             }
-            (*dml_by_users[client->username]) << stat_info->total_time;
-        }
-        if (stat_info->error_code != 1000) {
-            sql_error << 1;
-            if (stat_info->error_code == 10004) {
-                exec_sql_error << 1;
+            if (stat_info->txn_alive_time > 0) {
+                txn_alive_time_cost << stat_info->txn_alive_time;
             }
-        }
-        if (stat_info->txn_alive_time > 0) {
-            txn_alive_time_cost << stat_info->txn_alive_time;
         }
     }
 
