@@ -736,7 +736,7 @@ bool HandleHelper::_handle_ttl_duration(const SmartSocket& client, const std::ve
     info->set_database(client->current_db);
     info->set_namespace_name(client->user_info->namespace_);
     int64_t ttl = strtoll(split_vec[3].c_str(), NULL, 10);
-    if (ttl <= 0) { 
+    if (ttl <= 0 || ttl > 315576000LL) { 
         return false; 
     }
     info->set_ttl_duration(ttl);
