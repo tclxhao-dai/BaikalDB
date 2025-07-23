@@ -24,11 +24,7 @@ bool UserInfo::is_exceed_quota() {
         query_count = 0;
         return false;
     }
-    int32_t quota = query_quota;
-    if (quota == 0) {
-        quota = FLAGS_query_quota_per_user;
-    }
-    return query_count++ > quota;
+    return query_count++ > query_quota;
 }
 
 } // namespace baikaldb

@@ -20,7 +20,6 @@
 namespace baikaldb {
 DEFINE_int32(per_txn_max_num_locks, 1000000, "max num locks per txn default 100w");
 DEFINE_int64(row_number_to_check_memory, 4096, "do memory limit when row number more than #, default: 4096");
-DECLARE_int32(single_store_concurrency);
 DECLARE_int64(baikaldb_alive_time_s);
 DEFINE_int32(time_length_to_delete_message, 1, "hours length to delete mem_row_descriptor of sql : default one hour");
 DEFINE_bool(limit_unappropriate_sql, false, "limit concurrency as one when select sql is unappropriate");
@@ -186,7 +185,9 @@ int64_t RuntimeState::calc_single_store_concurrency(pb::OpType op_type) {
     if (_single_store_concurrency > 0) {
         return _single_store_concurrency;
     }
-    int64_t single_store_concurrency = FLAGS_single_store_concurrency;//默认并发度为20
+    auto user_info = _client_conn->user_info;
+    int64_t single_store_concurrency = user_info->single_store_concurrency();
+    
     if (!FLAGS_limit_unappropriate_sql || op_type != pb::OP_SELECT) {
         return single_store_concurrency;
     }

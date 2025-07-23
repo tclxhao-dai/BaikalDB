@@ -27,7 +27,9 @@
 using google::protobuf::FileDescriptor;
 namespace baikaldb {
 DEFINE_bool(need_health_check, true, "need_health_check");
+
 DECLARE_string(meta_server_bns);
+
 BthreadLocal<bool> SchemaFactory::use_backup;
 int SchemaFactory::init(bool is_db, bool is_backup) {
     if (_is_inited) {
@@ -1502,6 +1504,32 @@ void SchemaFactory::update_user(const pb::UserPrivilege& user) {
         user_info->acl_user = user.acl();
         for (auto& iter : _show_db_info) {
             user_info->all_database.insert(iter.first);
+        }
+    }
+    // user_info->query_quota = FLAGS_query_quota_per_user;
+    user_info->user_conf.update_bvars = true;
+    user_info->user_conf.print_agg_sql = true;
+    if (user.has_user_conf()) {
+        if (user.user_conf().has_update_bvars()) {
+            user_info->user_conf.update_bvars = user.user_conf().update_bvars();
+        }
+        if (user.user_conf().has_print_agg_sql()) {
+            user_info->user_conf.print_agg_sql = user.user_conf().print_agg_sql();
+        }
+        if (user.user_conf().has_single_store_concurrency()) {
+            user_info->user_conf.single_store_concurrency = user.user_conf().single_store_concurrency();
+        }
+        if (user.user_conf().has_max_select_region_count()) {
+            user_info->user_conf.max_select_region_count = user.user_conf().max_select_region_count();
+        }
+        if (user.user_conf().has_query_timeout()) {
+            user_info->user_conf.query_timeout = user.user_conf().query_timeout();
+        }
+        if (user.user_conf().has_max_select_rows()) {
+            user_info->user_conf.max_select_rows = user.user_conf().max_select_rows();
+        }
+        if (user.user_conf().has_quota() && user.user_conf().quota() > 0) {
+            user_info->query_quota = user.user_conf().quota();
         }
     }
     uint32_t db_cnt  = user.privilege_database_size();

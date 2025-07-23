@@ -416,6 +416,17 @@ message UserPrivilege {
     optional uint32 acl                                      = 20; //权限控制列表,bitmap
     optional bool  if_exist                                  = 21;
     optional bool is_request_additional                      = 24; // 是否访问外挂分区
+    optional UserConf user_conf                              = 25;
+};
+
+message UserConf {
+    optional bool update_bvars              = 1;
+    optional bool print_agg_sql             = 2;
+    optional int64 single_store_concurrency = 3;
+    optional int64 query_timeout            = 4;
+    optional int64 max_select_region_count  = 5;
+    optional int64 max_select_rows          = 6;
+    optional int64 quota                    = 7;
 };
 
 //集群信息
