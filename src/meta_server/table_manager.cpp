@@ -5136,9 +5136,10 @@ void TableManager::link_binlog(const pb::MetaManagerRequest& request, const int6
         binlog_info->set_binlog_table_id(binlog_table_id);
         if (get_field_info) {
             mem_schema_pb.mutable_link_field()->CopyFrom(link_field);
+            binlog_info->mutable_link_field()->CopyFrom(link_field);
         }
+        binlog_info->set_partition_is_same_hint(partition_is_same_hint);
         mem_schema_pb.set_partition_is_same_hint(partition_is_same_hint);
-        binlog_info->mutable_link_field()->CopyFrom(link_field);
     }
     mem_schema_pb.set_version(mem_schema_pb.version() + 1);
     set_table_pb(mem_schema_pb);
