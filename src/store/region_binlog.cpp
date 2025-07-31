@@ -1530,8 +1530,11 @@ void Region::recover_binlog() {
         _binlog_param.oldest_ts, ts_to_datetime_str(_binlog_param.oldest_ts).c_str());
 }
 
-inline bool can_follower(const pb::OpType& type) {
-    return type == pb::OP_READ_BINLOG || type == pb::OP_RECOVER_BINLOG || type == pb::OP_QUERY_BINLOG;
+inline bool can_follower(const pb::StoreReq* request) {
+    if ((!request->has_select_without_leader() || request->select_without_leader()) && (request->op_type() == pb::OP_READ_BINLOG)) {
+        return true;
+    }
+    return request->op_type() == pb::OP_RECOVER_BINLOG || request->op_type() == pb::OP_QUERY_BINLOG;
 }
 
 void Region::query_binlog_ts(const pb::StoreReq* request,
@@ -1579,7 +1582,7 @@ void Region::query_binlog(google::protobuf::RpcController* controller,
 
     const auto& remote_side_tmp = butil::endpoint2str(cntl->remote_side());
     const char* remote_side     = remote_side_tmp.c_str();
-    if ((!is_leader()) && (!can_follower(request->op_type()) || _shutdown || !_init_success)) {
+    if ((!is_leader()) && (!can_follower(request) || _shutdown || !_init_success)) {
         response->set_errcode(pb::NOT_LEADER);
         response->set_leader(butil::endpoint2str(_node.leader_id().addr).c_str());
         response->set_errmsg("not leader");
