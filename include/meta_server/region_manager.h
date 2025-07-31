@@ -141,9 +141,9 @@ public:
     
     void leader_main_logical_room_check(const pb::StoreHeartBeatRequest* request,
                     pb::StoreHeartBeatResponse* response,
-                    IdcInfo& leader_idc,
+                    std::string& leader_idc,
                     std::unordered_map<int64_t, int64_t>& table_replica,
-                    std::unordered_map<int64_t, IdcInfo>& table_main_idc,
+                    std::unordered_map<int64_t, std::set<std::string>>& table_main_idc,
                     std::set<int64_t>& trans_leader_region_ids);
     
     void leader_load_balance_on_pk_prefix(const std::string& instance,
@@ -154,7 +154,7 @@ public:
                                           std::unordered_map<int64_t, int64_t>& table_transfer_leader_count,
                                           std::unordered_map<std::string, int64_t>& pk_prefix_leader_count,
                                           std::unordered_map<int64_t, int64_t>& table_replica,
-                                          std::unordered_map<int64_t, IdcInfo>& table_main_idc,
+                                          std::unordered_map<int64_t, std::set<std::string>>& table_main_idc,
                                           pb::StoreHeartBeatResponse* response);
     
     void pk_prefix_load_balance(const std::unordered_map<std::string, int64_t>& add_peer_counts,

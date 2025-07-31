@@ -161,6 +161,7 @@ struct DistInfo {
     int64_t count;
     std::string resource_tag;
     std::string physical_room;
+    bool can_be_leader = true;
 };
 
 struct TTLInfo {

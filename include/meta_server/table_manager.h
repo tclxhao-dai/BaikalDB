@@ -591,6 +591,26 @@ public:
         idc = {_table_info_map[table_id].schema_pb.resource_tag(), _table_info_map[table_id].schema_pb.main_logical_room(), ""};
         return 0;
     }
+    int get_table_leader_idcs(int64_t table_id, std::vector<IdcInfo>& leader_idcs) {
+        BAIDU_SCOPED_LOCK(_table_mutex);
+        if (_table_info_map.find(table_id) == _table_info_map.end()) {
+            return -1;
+        }
+        if (_table_info_map[table_id].schema_pb.main_logical_room() != "" ){
+            IdcInfo idc;
+            idc = {_table_info_map[table_id].schema_pb.resource_tag(), _table_info_map[table_id].schema_pb.main_logical_room(), ""};
+            leader_idcs.push_back(idc);
+        } else if (_table_info_map[table_id].schema_pb.dists_size() > 0) {
+            for (auto& dist : _table_info_map[table_id].schema_pb.dists()) {
+                if (dist.can_be_leader()) {
+                    IdcInfo idc = {_table_info_map[table_id].schema_pb.resource_tag(), dist.logical_room(), ""};
+                    leader_idcs.push_back(idc);
+                    
+                }
+            }
+        }
+        return 0;
+    }
     // 获取表副本分布，表副本分布{resource_tag:logical_room:phyiscal_room} -> count
     int64_t get_replica_dist_idcs(int64_t table_id, std::unordered_map<std::string, int64_t>& replica_dists_map) {
         BAIDU_SCOPED_LOCK(_table_mutex);

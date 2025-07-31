@@ -86,6 +86,7 @@ message ReplicaDist {
     required int64  count         = 2;
     optional string resource_tag  = 3;
     optional string physical_room = 4;
+    optional bool   can_be_leader = 5 [default = true];
 };
 // user MUST ensure that field_id in fields are continuous and sorted, 
 // even if a field is deleted
