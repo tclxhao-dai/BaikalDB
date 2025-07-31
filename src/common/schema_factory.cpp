@@ -531,6 +531,7 @@ int SchemaFactory::update_table_internal(SchemaMapping& background, const pb::Sc
         dist_info.logical_room = dist.logical_room();
         dist_info.physical_room = dist.physical_room();
         dist_info.count = dist.count();
+        dist_info.can_be_leader = dist.can_be_leader();
         tbl_info.dists.push_back(dist_info);
     }
     std::unique_ptr<DescriptorPool> tmp_pool(new(std::nothrow)DescriptorPool);
