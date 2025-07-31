@@ -898,20 +898,24 @@ public:
         return 0;
     }
     int get_table_leader_idcs(int64_t table_id, std::vector<IdcInfo>& leader_idcs) {
-        BAIDU_SCOPED_LOCK(_table_mutex);
-        if (_table_info_map.find(table_id) == _table_info_map.end()) {
+        DoubleBufferedTableMemMapping::ScopedPtr info;
+        if (_table_mem_infos.Read(&info) != 0) {
+            DB_WARNING("read double_buffer_table error.");
             return -1;
         }
-        if (_table_info_map[table_id].schema_pb.main_logical_room() != "" ){
+        auto iter = info->table_info_map.find(table_id);
+        if (iter == info->table_info_map.end()) {
+            return -1;
+        }
+        if (iter->second.schema_pb.main_logical_room() != "" ){
             IdcInfo idc;
-            idc = {_table_info_map[table_id].schema_pb.resource_tag(), _table_info_map[table_id].schema_pb.main_logical_room(), ""};
+            idc = {iter->second.schema_pb.resource_tag(), iter->second.schema_pb.main_logical_room(), ""};
             leader_idcs.push_back(idc);
-        } else if (_table_info_map[table_id].schema_pb.dists_size() > 0) {
-            for (auto& dist : _table_info_map[table_id].schema_pb.dists()) {
+        } else if (iter->second.schema_pb.dists_size() > 0) {
+            for (auto& dist : iter->second.schema_pb.dists()) {
                 if (dist.can_be_leader()) {
-                    IdcInfo idc = {_table_info_map[table_id].schema_pb.resource_tag(), dist.logical_room(), ""};
+                    IdcInfo idc = {iter->second.schema_pb.resource_tag(), dist.logical_room(), ""};
                     leader_idcs.push_back(idc);
-                    
                 }
             }
         }

@@ -1718,7 +1718,7 @@ void Region::query_binlog(google::protobuf::RpcController* controller,
 
     const auto& remote_side_tmp = butil::endpoint2str(cntl->remote_side());
     const char* remote_side     = remote_side_tmp.c_str();
-    if ((!is_leader()) && (!can_follower(request->op_type()) || _shutdown || !_init_success)) {
+    if ((!is_leader()) && (!can_follower(request) || _shutdown || !_init_success)) {
         response->set_errcode(pb::NOT_LEADER);
         response->set_leader(butil::endpoint2str(_node.leader_id().addr).c_str());
         response->set_errmsg("not leader");
