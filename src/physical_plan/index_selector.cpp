@@ -777,6 +777,7 @@ int IndexSelector::select_partition(SmartTable& table_info, ScanNode* scan_node,
                 return 0;
             }
         }
+        scan_node->set_partition_field_id(table_info->partition_ptr->partition_field_id());
         auto partition_type = table_info->partition_ptr->partition_type();
         auto field_iter = field_range_map.find(table_info->partition_ptr->partition_field_id());
         if (partition_type == pb::PT_HASH) {
