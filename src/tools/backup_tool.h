@@ -56,7 +56,7 @@ struct RegionFile {
     int64_t log_index;
     std::string filename;
 };
-
+namespace base = butil;
 using TableRegionFiles = std::unordered_map<int64_t, std::vector<RegionFile>>;
 
 enum Status {
@@ -76,7 +76,7 @@ struct TaskInfo {
 
 class BackupStreamReceiver : public CommonStreamReceiver {
 public:
-    virtual int on_received_messages(baidu::rpc::StreamId id, 
+    virtual int on_received_messages(brpc::StreamId id,
         base::IOBuf *const messages[], 
         size_t size) {
             
@@ -125,7 +125,7 @@ public:
         
         return 0;
     }
-    virtual void on_idle_timeout(baidu::rpc::StreamId id) {
+    virtual void on_idle_timeout(brpc::StreamId id) {
         DB_WARNING("on_idle_timeout streaming %lu", id);
         _status = pb::StreamState::SS_FAIL;
     }

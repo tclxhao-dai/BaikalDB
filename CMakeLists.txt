@@ -380,7 +380,7 @@ SET(DEP_LIB
         ${ROCKSDB_LIBRARIES}
         )
 
-if (WITH_BAIKAL_CLIENT)
+if (WITH_BAIKAL_CLIENT OR WITH_TOOLS)
     SET(DEP_LIB ${DEP_LIB} ${MARIADB_LIBRARIES})
     SET(DEP_INC ${DEP_INC} ${MARIADB_INCLUDE_DIR})
 endif ()
@@ -426,8 +426,11 @@ SET(DEP_LIB
 message("DEP INCLUDES: ${DEP_INC}")
 message("DEP LIBRARYS: ${DEP_LIB}")
 
+set(OPTIMIZATION_LEVEL "-O2")
+
 if (WITH_DEBUG_SYMBOLS)
     SET(DEBUG_SYMBOL "-ggdb")
+    SET(OPTIMIZATION_LEVEL "-O0")
 endif ()
 
 if (NOT DEBUG)
@@ -435,8 +438,8 @@ if (NOT DEBUG)
     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DNDEBUG")
 endif ()
 
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 ${DEBUG_SYMBOL} -O2 -pipe -m64 -fopenmp -Wall -W -fPIC -Wno-unused-parameter -Wno-strict-aliasing -Wno-parentheses -fno-omit-frame-pointer ")
-SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 ${DEBUG_SYMBOL} -O2 -pipe -m64 -fopenmp -Wall -W -fPIC -Wno-unused-parameter -Wno-strict-aliasing -Wno-parentheses -fno-omit-frame-pointer")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 ${DEBUG_SYMBOL} ${OPTIMIZATION_LEVEL} -pipe -m64 -fopenmp -Wall -W -fPIC -Wno-unused-parameter -Wno-strict-aliasing -Wno-parentheses -fno-omit-frame-pointer ")
+SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 ${DEBUG_SYMBOL} ${OPTIMIZATION_LEVEL} -pipe -m64 -fopenmp -Wall -W -fPIC -Wno-unused-parameter -Wno-strict-aliasing -Wno-parentheses -fno-omit-frame-pointer")
 
 add_definitions(
         -D_GNU_SOURCE
@@ -462,6 +465,12 @@ file(GLOB SESSION src/session/*.cpp)
 file(GLOB SQLPARSER include/sqlparser/*.cc ${CMAKE_CURRENT_BINARY_DIR}/sqlparser/*.cc)
 file(GLOB STORE src/store/*.cpp)
 list(REMOVE_ITEM STORE src/store/main.cpp)
+
+set(BAIKAL_BACKUP_INC
+
+        ${CMAKE_SOURCE_DIR}/src/tools/baikal_backup
+        ${CMAKE_SOURCE_DIR}/src/tools/baikal_backup/support
+)
 
 set(COMMON_INC
         ${DEP_INC}
@@ -544,4 +553,34 @@ target_link_libraries(baikaldb PUBLIC common ${DEP_LIB})
 
 if (WITH_BAIKAL_CLIENT)
     add_subdirectory(baikal-client)
+endif ()
+
+# tools
+set(WITH_TOOLS ON)
+if (WITH_TOOLS)
+    message(${BAIKAL_BACKUP_INC})
+    set(BAIKAL_BACKUP_INC
+
+            ${BAIKAL_BACKUP_INC}
+            ${COMMON_INC}
+    )
+    message(${BAIKAL_BACKUP_INC})
+
+
+    #dump
+    add_executable(sst_backup_dump src/tools/baikal_backup/dump/main.cpp
+    #        src/tools/baikal_backup/support/retry.h
+    )
+    add_dependencies(sst_backup_dump common)
+    target_include_directories(sst_backup_dump PUBLIC ${BAIKAL_BACKUP_INC})
+    target_link_libraries(sst_backup_dump PUBLIC common ${DEP_LIB})
+
+
+
+    #load
+    #add_library(load_lib src/tools/baikal_backup/load/parser.cpp)
+    add_executable(sst_backup_load src/tools/baikal_backup/load/main.cpp)
+    add_dependencies(sst_backup_load common)
+    target_include_directories(sst_backup_load PUBLIC ${BAIKAL_BACKUP_INC})
+    target_link_libraries(sst_backup_load PUBLIC common ${DEP_LIB})
 endif ()
