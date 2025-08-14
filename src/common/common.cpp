@@ -437,6 +437,9 @@ void update_schema_conf_common(const std::string& table_name, const pb::SchemaCo
             }
 
         }
+        if (schema_conf.filter_blacklist_size() > 0) {
+            p_conf->mutable_filter_blacklist()->CopyFrom(schema_conf.filter_blacklist());
+        }
         DB_WARNING("%s schema conf UPDATE TO : %s", table_name.c_str(), schema_conf.ShortDebugString().c_str());
 }
 

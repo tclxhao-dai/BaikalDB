@@ -952,6 +952,9 @@ void TableManager::update_schema_conf(const pb::MetaManagerRequest& request,
                 }
             }
         }
+        if (request.is_force_setting()) {
+            p_conf->CopyFrom(schema_conf);
+        }
         update_schema_conf_common(request.table_info().table_name(), schema_conf, p_conf);
         //代价开关操作，需要增加op_version
         if (schema_conf.has_select_index_by_cost()) {

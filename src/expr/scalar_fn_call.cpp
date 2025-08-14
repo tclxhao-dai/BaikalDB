@@ -268,5 +268,49 @@ ExprValue ScalarFnCall::get_value(const ExprValue& value) {
     return _fn_call(args).cast_to(_col_type);
 }
 
+bool ScalarFnCall::hit_filter_blacklist(const std::map<int64_t, std::map<int, std::set<std::string>>>& filter_blacklist, std::string& hit_result) {
+    auto fnop = _fn.fn_op();
+    if (fnop == parser::FT_EQ || fnop == parser::FT_GT || fnop == parser::FT_GE || fnop == parser::FT_LT || fnop == parser::FT_LE) {
+        if (_children.size() != 2) {
+            return false;
+        }
+        ExprNode *slot = nullptr;
+        ExprNode *val = nullptr;
+        if (_children[0]->node_type() == pb::SLOT_REF) {
+            slot = _children[0];
+            val = _children[1];
+        } else if (_children[1]->node_type() == pb::SLOT_REF) {
+            slot = _children[1];
+            val = _children[0];
+        } else {
+            return false;
+        }
+        if (!val->is_literal()) {
+            return false;
+        }
+        auto field_id = ((SlotRef*)slot)->field_id();
+        auto iter = filter_blacklist.find(field_id);
+        if (iter != filter_blacklist.end()) {
+            auto op_iter = iter->second.find(_fn.fn_op());
+            if (op_iter != iter->second.end()) {
+                std::string value = ((Literal*)val)->get_value(nullptr).get_string();
+                if (op_iter->second.count(value) != 0) {
+                    std::ostringstream os;        
+                    os << "field: " << field_id << " op: " << _fn.fn_op() << " value: " << value;
+                    hit_result = os.str();
+                    return true;
+                }
+            }
+        }
+        return false;
+    } else {
+        for (auto& expr : _children) {
+            if (expr->hit_filter_blacklist(filter_blacklist, hit_result)) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
+} // end namespace baikaldb
 /* vim: set ts=4 sw=4 sts=4 tw=100 */

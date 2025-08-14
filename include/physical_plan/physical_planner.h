@@ -23,6 +23,7 @@
 #include "separate.h"
 #include "auto_inc.h"
 #include "decorrelate.h"
+#include "field_filter_blacklist.h"
 
 namespace baikaldb {
 class PhysicalPlanner {

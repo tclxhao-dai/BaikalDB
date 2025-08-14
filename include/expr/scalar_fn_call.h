@@ -48,6 +48,7 @@ public:
         }
         return ExprNode::get_last_value();
     }
+    virtual bool hit_filter_blacklist(const std::map<int64_t, std::map<int, std::set<std::string>>>& filter_blacklist, std::string& hit_result);
 private:
     ExprValue multi_eq_value(MemRow* row) {
         for (size_t i = 0; i < children(0)->children_size(); i++) {

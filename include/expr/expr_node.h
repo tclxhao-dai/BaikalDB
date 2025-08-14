@@ -289,6 +289,15 @@ public:
         }
     }
 
+    virtual bool hit_filter_blacklist(const std::map<int64_t, std::map<int, std::set<std::string>>>& filter_blacklist, std::string& hit_result) {
+        for (auto& expr : _children) {
+            if (expr->hit_filter_blacklist(filter_blacklist, hit_result)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     virtual void transfer_pb(pb::ExprNode* pb_node);
     static void create_pb_expr(pb::Expr* expr, ExprNode* root);
     static int create_tree(const pb::Expr& expr, ExprNode** root);

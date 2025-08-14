@@ -234,6 +234,7 @@ struct TableInfo {
     std::set<uint64_t> sign_blacklist;
     std::set<uint64_t> sign_forcelearner;
     std::set<std::string> sign_forceindex;
+    std::map<int64_t, std::map<int, std::set<std::string>>> filter_blacklist;
     
     TableInfo() {}
     FieldInfo* get_field_ptr(int32_t field_id) {

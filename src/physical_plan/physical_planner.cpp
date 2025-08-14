@@ -37,6 +37,11 @@ int PhysicalPlanner::analyze(QueryContext* ctx) {
         return ret;
     }
     
+    ret = FieldFilterBlacklist().analyze(ctx);
+    if (ret < 0) {
+        return ret;
+    }
+
     // for INSERT/REPLACE statements
     // insert user variables to records for prepared stmt
     ret = insert_values_to_record(ctx);

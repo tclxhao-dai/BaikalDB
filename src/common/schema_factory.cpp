@@ -302,6 +302,7 @@ int SchemaFactory::update_table_internal(SchemaMapping& background, const pb::Sc
         tbl_info.sign_blacklist.clear();
         tbl_info.sign_forcelearner.clear();
         tbl_info.sign_forceindex.clear();
+        tbl_info.filter_blacklist.clear();
     }
     TableInfo& tbl_info = *tbl_info_ptr;
     tbl_info.file_proto->mutable_options()->set_cc_enable_arenas(true);
@@ -352,6 +353,7 @@ int SchemaFactory::update_table_internal(SchemaMapping& background, const pb::Sc
                 DB_DEBUG("sign_num: %lu, sign_str: %s", sign_num, sign_str.c_str());
             }
         }
+
         if (tbl_info.schema_conf.has_sign_forcelearner() && tbl_info.schema_conf.sign_forcelearner() != "") {
             DB_DEBUG("sign_forcelearner: %s", tbl_info.schema_conf.sign_forcelearner().c_str());
             std::vector<std::string> vec;
@@ -450,6 +452,37 @@ int SchemaFactory::update_table_internal(SchemaMapping& background, const pb::Sc
         }
         field_name_map[field.field_name()] = field;
     }
+    if (tbl_info.schema_conf.filter_blacklist_size() > 0) {
+        DB_DEBUG("update tbl_info.schema_conf.filter_blacklist, size: %d", tbl_info.schema_conf.filter_blacklist_size());
+        std::map<int64_t, std::map<int, std::set<std::string>>> filter_blacklist;
+        for (auto& blk : tbl_info.schema_conf.filter_blacklist()) {
+            std::string field_name = blk.field_name();
+            auto field_iter = field_name_map.find(field_name);
+            if (field_iter == field_name_map.end()) {
+                continue;
+            }
+            int64_t field_id = field_iter->second.field_id();
+            std::string op_str = blk.op();
+            int op = 0;
+            if (op_str == "=") {
+                op = parser::FT_EQ;
+            } else if (op_str == ">=") {
+                op = parser::FT_GE;
+            } else if (op_str == ">") {
+                op = parser::FT_GT;
+            } else if (op_str == "<=") {
+                op = parser::FT_LE;
+            } else if (op_str == "<" ){
+                op = parser::FT_LT;
+            } else {
+                continue;
+            }
+            std::string val = blk.value();
+            filter_blacklist[field_id][op].insert(val);
+        }
+        tbl_info.filter_blacklist = filter_blacklist;
+    }
+
     for (int idx = 0; idx < field_cnt; ++idx) {
         const pb::FieldInfo& field = table.fields(idx);
         if (field.deleted()) {

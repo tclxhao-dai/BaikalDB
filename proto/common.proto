@@ -93,6 +93,12 @@ enum StreamState {
     SS_FAIL = 3;
 };
 
+message FilterBlacklist {
+    required string field_name = 1;
+    optional string op = 2;
+    optional string value = 3;
+}
+
 message SchemaConf {
     optional bool need_merge                = 1;
     optional bool storage_compute_separate  = 2; 
@@ -109,6 +115,7 @@ message SchemaConf {
     optional int32 tail_split_num           = 13; // 尾分裂新region数
     optional int32 tail_split_step          = 14;
     optional int64 auto_inc_rand_max        = 15; //meta挂掉后降级到随机id
+    repeated FilterBlacklist filter_blacklist        = 16; // 过滤条件黑名单
 };
 
 enum Engine {

@@ -1405,7 +1405,7 @@ bool HandleHelper::_handle_schema_conf(const SmartSocket& client, const std::vec
         return false;
     }
 
-    if (split_vec.size() != 5) {
+    if (split_vec.size() < 5) {
         DB_FATAL("param invalid");
         client->state = STATE_ERROR;
         return false;
@@ -1464,6 +1464,59 @@ bool HandleHelper::_handle_schema_conf(const SmartSocket& client, const std::vec
         schema_conf->set_in_fast_import(is_open);
         auto table_schema = factory->get_table_info(table_id);
         table_info->set_resource_tag(table_schema.resource_tag);
+    } else if (key == "filter_blacklist") {
+        auto table = factory->get_table_info_ptr(table_id);
+        if (table == nullptr) {
+            DB_FATAL("table null table name: %s, table_id: %ld", full_name.c_str(), table_id);
+            client->state = STATE_ERROR;
+            return false;
+        }
+        if (split_vec.size() == 5 && split_vec[4] == "clear") {
+            schema_conf->CopyFrom(table->schema_conf);
+            schema_conf->clear_filter_blacklist();
+            request.set_is_force_setting(true);
+        } else if (split_vec.size() == 8) {
+            schema_conf->mutable_filter_blacklist()->CopyFrom(table->schema_conf.filter_blacklist());
+            if (split_vec[4] == "add") {
+                bool exist = false;
+                if (split_vec[6] != "=" && split_vec[6] != ">" && split_vec[6] != ">=" && split_vec[6] != "<" && split_vec[6] != "<=" ){
+                    DB_WARNING("handle filter_blacklist error!");
+                    client->state = STATE_ERROR;
+                    return false;
+                }
+                for (auto& filter : schema_conf->filter_blacklist()) {
+                    if (filter.field_name() == split_vec[5] && filter.op() == split_vec[6] && filter.value() == split_vec[7]) {
+                        exist = true;
+                        break;
+                    }
+                }
+                if (!exist) {
+                    auto fblk = schema_conf->add_filter_blacklist();
+                    fblk->set_field_name(split_vec[5]);
+                    fblk->set_op(split_vec[6]);
+                    fblk->set_value(split_vec[7]);
+                }
+            } else {
+                std::vector<pb::FilterBlacklist> flist;
+                for (size_t i = 0; i < schema_conf->filter_blacklist_size();) {
+                    auto fblk = schema_conf->filter_blacklist(i);
+                    if (fblk.field_name() == split_vec[5] && fblk.op() == split_vec[6] && fblk.value() == split_vec[7]) {
+                        schema_conf->mutable_filter_blacklist()->DeleteSubrange(i, 1);
+                    } else {
+                        i ++;
+                    }
+                }
+                if (schema_conf->filter_blacklist_size() == 0) {
+                    schema_conf->CopyFrom(table->schema_conf);
+                    schema_conf->clear_filter_blacklist();
+                    request.set_is_force_setting(true);
+                }
+            }
+        } else {
+            DB_WARNING("handle filter_blacklist error!");
+            client->state = STATE_ERROR;
+            return false;
+        }
     } else if (key.find("blacklist") != key.npos || key.find("forcelearner") != key.npos
             || key.find("forceindex") != key.npos) {
         auto table = factory->get_table_info_ptr(table_id);
