@@ -91,6 +91,7 @@ DECLARE_int32(store_rocks_hang_cnt_limit);
 DECLARE_string(meta_server_bns);
 DECLARE_bool(auto_update_meta_list);
 
+BRPC_VALIDATE_GFLAG(stop_ttl_data, brpc::PassValidate);
 BRPC_VALIDATE_GFLAG(rocksdb_perf_level, brpc::NonNegativeInteger);
 BRPC_VALIDATE_GFLAG(raft_fs_max_read_size_peer_second, brpc::PassValidate);
 BRPC_VALIDATE_GFLAG(raft_fs_max_write_size_peer_second, brpc::PassValidate);

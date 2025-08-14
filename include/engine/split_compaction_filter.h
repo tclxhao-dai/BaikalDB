@@ -23,6 +23,7 @@
 
 namespace baikaldb {
 DECLARE_int32(rocks_binlog_ttl_days);
+DECLARE_bool(compact_filter_ttl_data);
 class SplitCompactionFilter : public rocksdb::CompactionFilter {
 struct FilterRegionInfo {
     FilterRegionInfo(bool use_ttl, const std::string& end_key, int64_t online_ttl_base_expire_time_us) :
@@ -65,7 +66,7 @@ public:
         TableKey table_key(key);
         int64_t region_id = table_key.extract_i64(0);
         FilterRegionInfo* filter_info  = get_filter_region_info(region_id);
-        if (filter_info == nullptr || filter_info->end_key.empty()) {
+        if (filter_info == nullptr) {
             return false;
         }
         const std::string& end_key = filter_info->end_key;
@@ -79,6 +80,20 @@ public:
             return false;
         }
 
+        int64_t read_timestamp_us = butil::gettimeofday_us();
+        rocksdb::Slice value_slice(value);
+        int64_t expire_timeout_us = 0;
+        if (filter_info->use_ttl) {
+            expire_timeout_us = ttl_decode(value_slice, index_info, filter_info->online_ttl_base_expire_time_us);
+        }
+        if (FLAGS_compact_filter_ttl_data) {
+            if (expire_timeout_us > 0 && expire_timeout_us < read_timestamp_us) {
+                return true;
+            }
+        }
+        if (filter_info->end_key.empty()) {
+            return false;
+        }
         //int ret1 = 0;
         int ret2 = 0;
         if (index_info->type == pb::I_PRIMARY || index_info->is_global) {
@@ -95,10 +110,6 @@ public:
             }
             rocksdb::Slice key_slice(key);
             key_slice.remove_prefix(sizeof(int64_t) * 2);
-            rocksdb::Slice value_slice(value);
-            if (filter_info->use_ttl) {
-                ttl_decode(value_slice, index_info, filter_info->online_ttl_base_expire_time_us);
-            }
             return !Transaction::fits_region_range(key_slice, value_slice, 
                 nullptr, &end_key, *pk_info, *index_info);
         }

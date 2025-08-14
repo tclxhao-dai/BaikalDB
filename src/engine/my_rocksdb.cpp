@@ -17,6 +17,8 @@
 
 namespace baikaldb {
 DEFINE_int32(rocksdb_cost_sample, 100, "rocksdb_cost_sample");
+DEFINE_bool(compact_filter_ttl_data, false, "remove ttl expire data when compact");
+BRPC_VALIDATE_GFLAG(compact_filter_ttl_data, brpc::PassValidate);
 
 namespace myrocksdb {
 
