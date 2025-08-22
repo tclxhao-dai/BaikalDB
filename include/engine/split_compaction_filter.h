@@ -71,9 +71,11 @@ public:
         }
         const std::string& end_key = filter_info->end_key;
         int64_t index_id = table_key.extract_i64(sizeof(int64_t));
+        bool is_cstore = false;
         // cstore, primary column key format: index_id = table_id(32byte) + field_id(32byte)
         if ((index_id & SIGN_MASK_32) != 0) {
             index_id = index_id >> 32;
+            is_cstore = true;
         }
         auto index_info = _factory->get_split_index_info(index_id);
         if (index_info == nullptr) {
@@ -81,6 +83,23 @@ public:
         }
 
         int64_t read_timestamp_us = butil::gettimeofday_us();
+        if (filter_info->end_key.empty()) {
+            return false;
+        }
+        int ret2 = 0;
+        if (index_info->type == pb::I_PRIMARY || index_info->is_global) {
+            ret2 = end_key.compare(0, std::string::npos, 
+                    key.data() + prefix_len, key.size() - prefix_len);
+           // DB_WARNING("split compaction filter, region_id: %ld, index_id: %ld, end_key: %s, key: %s, ret: %d",
+           //     region_id, index_id, rocksdb::Slice(end_key).ToString(true).c_str(), 
+           //     key.ToString(true).c_str(), ret2);
+            if (ret2 <= 0) {
+                return true;
+            }
+            if (is_cstore) {
+                return false;
+            }
+        }
         rocksdb::Slice value_slice(value);
         int64_t expire_timeout_us = 0;
         if (filter_info->use_ttl) {
@@ -91,19 +110,7 @@ public:
                 return true;
             }
         }
-        if (filter_info->end_key.empty()) {
-            return false;
-        }
-        //int ret1 = 0;
-        int ret2 = 0;
-        if (index_info->type == pb::I_PRIMARY || index_info->is_global) {
-            ret2 = end_key.compare(0, std::string::npos, 
-                    key.data() + prefix_len, key.size() - prefix_len);
-           // DB_WARNING("split compaction filter, region_id: %ld, index_id: %ld, end_key: %s, key: %s, ret: %d",
-           //     region_id, index_id, rocksdb::Slice(end_key).ToString(true).c_str(), 
-           //     key.ToString(true).c_str(), ret2);
-            return (ret2 <= 0);
-        } else if (index_info->type == pb::I_UNIQ || index_info->type == pb::I_KEY) {
+        if (index_info->type == pb::I_UNIQ || index_info->type == pb::I_KEY) {
             auto pk_info = _factory->get_split_index_info(index_info->pk);
             if (pk_info == nullptr) {
                 return false;
