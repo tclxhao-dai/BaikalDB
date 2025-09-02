@@ -278,10 +278,8 @@ public:
             DB_WARNING("txn:%lu seq_id fallback seq_id:%d _seq_id:%d", _txn_id, seq_id, _seq_id);
             return;
         }
-        if (max_seq_id < seq_id) {
-            max_seq_id = seq_id;
-        }
         _seq_id = seq_id;
+        update_max_seq_id(seq_id);
     }
 
     void set_applied_seq_id(int seq_id) {
@@ -340,6 +338,7 @@ public:
     }
 
     void update_max_seq_id(int seq_id) {
+        BAIDU_SCOPED_LOCK(_txn_mutex);
         if (max_seq_id < seq_id) {
             max_seq_id = seq_id;
             last_active_time = butil::gettimeofday_us();
