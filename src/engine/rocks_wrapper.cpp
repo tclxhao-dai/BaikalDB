@@ -75,6 +75,7 @@ DEFINE_bool(use_direct_reads, false, "default false");
 DEFINE_int32(level0_max_sst_num, 500, "max level0 num for fast importer");
 
 DEFINE_bool(enable_blob_files, false, "set it to true to enable key-value separation");
+DEFINE_bool(raftlog_enable_blob_files, false, "set it to true to enable key-value separation");
 DEFINE_int32(min_blob_size, 1 * 1024,
              "values at or above this threshold will be written to blob files during flush or compaction");
 DEFINE_int32(rocks_data_ttl_days, 30, "data cf ttl default 30 days: rocksdb compaction ");
@@ -181,6 +182,17 @@ int32_t RocksWrapper::init(const std::string& path) {
     _log_cf_option.max_write_buffer_number_to_maintain = _log_cf_option.max_write_buffer_number;
     _log_cf_option.write_buffer_size = FLAGS_write_buffer_size;
     _log_cf_option.min_write_buffer_number_to_merge = FLAGS_min_write_buffer_number_to_merge;
+
+    if (FLAGS_raftlog_enable_blob_files) {
+        _log_cf_option.enable_blob_files = true;
+        _log_cf_option.min_blob_size = FLAGS_min_blob_size;
+        _log_cf_option.blob_file_size = 1ULL << 28;
+        _log_cf_option.blob_compression_type = rocksdb::CompressionType::kLZ4Compression;
+        _log_cf_option.enable_blob_garbage_collection  = true;
+        _log_cf_option.blob_garbage_collection_age_cutoff  = 0.25;
+        _log_cf_option.blob_garbage_collection_force_threshold  = 0.8;
+    }
+
 
     _binlog_cf_option.prefix_extractor.reset(
             rocksdb::NewFixedPrefixTransform(sizeof(int64_t)));
@@ -519,6 +531,32 @@ void RocksWrapper::update_oldest_ts_in_binlog_cf() {
     option.iterate_upper_bound = &upper_bound_slice;
     option.total_order_seek = true;
     option.fill_cache = false;
+    std::vector<rocksdb::LiveFileMetaData> files;
+    get_db()->GetLiveFilesMetaData(&files);
+    uint64_t oldest_file_number = 0;
+    uint64_t oldest_time = UINT64_MAX;
+    std::string oldest_file_smallestkey, oldest_file_largestkey;
+    for (auto& f : files) {
+        if (f.column_family_name != "bin_log_new") {
+            continue;
+        }
+        if (f.level == 0) { // FIFO compaction -> 全部在 L0
+            if (f.oldest_ancester_time < oldest_time) {
+                oldest_time = f.oldest_ancester_time;
+                oldest_file_number = f.file_number;
+                oldest_file_smallestkey = f.smallestkey;
+                oldest_file_largestkey = f.largestkey;
+            }
+        }
+    }
+    DB_WARNING("bin_log_new cf oldest sst file: %llu, start key:[%s], end key: [%s]", oldest_file_number, oldest_file_smallestkey.c_str(), oldest_file_largestkey.c_str());
+    option.table_filter = [oldest_file_number](const rocksdb::TableProperties& tp) {
+        if (oldest_file_number == 0) {
+            return false;
+        }
+        return tp.orig_file_number == oldest_file_number;
+    };
+
     std::unique_ptr<rocksdb::Iterator> iter(new_iterator(option, get_bin_log_handle()));
     iter->Seek(start_key);
     bool find = false;
