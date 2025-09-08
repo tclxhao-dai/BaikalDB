@@ -1,0 +1,21 @@
+{
+	"gitConfig": {
+		"gitURLPath": "https://git.17usoft.com/newsql/BaikalDB",
+		"editBranch": "master"
+	},
+	"docusaurusConfig": {
+		"title": "dcdb-version",
+		"tagline": "dcdb-version",
+		"url": "http://dcdb.inf.17usoft.com/docs/",
+		"projectName": "dcdb-version",
+		"themeConfig": {
+			"colorMode": {
+				"defaultMode": "light"
+			},
+			"navbar": {
+				"hideOnScroll": true,
+				"title": "dcdb-version"
+			}
+		}
+	}
+}
