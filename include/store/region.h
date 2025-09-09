@@ -273,6 +273,9 @@ enum GetMode {
     void print_log();
     // only used by offline binlog
     int get_prewrite_binlog(int64_t start_ts, std::map<int64_t, std::string>& start_binlog_map, bool& batch_finish, bool finish_get_all);
+    void set_max_read_size(int64_t max_read_size) {
+        _max_read_size = max_read_size;
+    };
 
 private:
     int64_t _region_id = 0;
@@ -292,6 +295,7 @@ private:
     int64_t _fake_binlog_cnt = 0;
     int64_t _first_commit_ts = -1;
     int64_t _last_commit_ts = -1;
+    int64_t _max_read_size = -1;
     std::map<int64_t, int64_t> _commit_start_map;
     std::map<int64_t, std::string> _start_binlog_map;
     std::map<int64_t, std::string> _fake_binlog_map;
@@ -666,6 +670,10 @@ public:
             braft::Closure* done, int64_t applied_index, int64_t term);
     
     void adjustkey_and_add_version_query(google::protobuf::RpcController* controller,
+            const pb::StoreReq* request, 
+            pb::StoreRes* response, 
+            google::protobuf::Closure* done);
+    void recalc_num_table_lines(google::protobuf::RpcController* controller,
             const pb::StoreReq* request, 
             pb::StoreRes* response, 
             google::protobuf::Closure* done);
@@ -1560,6 +1568,7 @@ private:
     SplitParam _split_param;
 
     std::mutex _legal_mutex;
+    std::mutex _apply_mutex;
     bool       _legal_region = true;
 
     uint64_t   _region_uuid = 0;

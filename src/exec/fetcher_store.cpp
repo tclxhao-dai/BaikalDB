@@ -432,11 +432,11 @@ ErrorType OnRPCDone::send_async() {
     if (_fetcher_store->dynamic_timeout_ms > 0 && !_backup.empty() && _backup != _addr) {
         option.backup_request_ms = _fetcher_store->dynamic_timeout_ms;
     }
-
-    if (!_state->is_ddl_work() && _request.op_type() == pb::OP_SELECT && _state->explain_type == EXPLAIN_NULL) {
+    auto user_info = _state->client_conn()->user_info;
+    if (!_state->is_ddl_work() && _request.op_type() == 4 && _state->explain_type == EXPLAIN_NULL) {
         int32_t sql_exec_time_left = FLAGS_fetcher_request_timeout;
-        if (FLAGS_sql_exec_timeout > 0) {
-            int64_t sql_exec_time_left = std::min(FLAGS_sql_exec_timeout - _state->get_cost_time() / 1000,
+        if (user_info->query_timeout() > 0) {
+            int64_t sql_exec_time_left = std::min(user_info->query_timeout() - _state->get_cost_time() / 1000,
                                                   FLAGS_fetcher_request_timeout * 1L);
             if (sql_exec_time_left <= 0) {
                 DB_WARNING("logid: %lu, sql exec timeout, op_type: %d, total_cost: %ld", _state->log_id(),
@@ -899,7 +899,8 @@ ErrorType OnRPCDone::handle_response(const std::string& remote_side) {
         _fetcher_store->row_cnt += _response.row_values_size();
     }
     // TODO reduce mem used by streaming
-    if ((!_state->is_full_export) && (_fetcher_store->row_cnt > FLAGS_max_select_rows)) {
+    auto user_info = _state->client_conn()->user_info;
+    if ((!_state->is_full_export) && (_fetcher_store->row_cnt > user_info->max_select_rows())) {
         DB_DONE(FATAL, "_row_cnt:%ld > %ld max_select_rows", _fetcher_store->row_cnt.load(), FLAGS_max_select_rows);
         return E_BIG_SQL;
     }

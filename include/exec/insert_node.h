@@ -59,6 +59,7 @@ private:
     std::vector<SmartRecord> _records;
     std::vector<int32_t>     _selected_field_ids;
     std::vector<ExprNode*>   _insert_values;
+    std::set<int32_t>        _expr_constant_ids;
 };
 }
 

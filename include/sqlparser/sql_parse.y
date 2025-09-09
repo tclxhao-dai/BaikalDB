@@ -774,6 +774,7 @@ extern int sql_error(YYLTYPE* yylloc, yyscan_t yyscanner, SqlParser* parser, con
 %right NOT
 %left XOR OR
 %left AND
+%right NOT
 %left EQ_OP NE_OP GE_OP GT_OP LE_OP LT_OP IS LIKE IN 
 %left '|'
 %left '&'

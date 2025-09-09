@@ -178,6 +178,9 @@ void PrivilegeManager::modify_user(const pb::MetaManagerRequest& request, braft:
     tmp_info.set_namespace_name(user_privilege.namespace_name());
     tmp_info.set_password(user_privilege.password());
     tmp_info.set_version(tmp_info.version() + 1);
+    if (user_privilege.has_user_conf()) {
+        tmp_info.mutable_user_conf()->CopyFrom(user_privilege.user_conf());
+    }
 
     // 构造key 和 value
     std::string value;
@@ -263,6 +266,9 @@ void PrivilegeManager::add_privilege(const pb::MetaManagerRequest& request, braf
         tmp_mem_privilege.set_is_request_additional(user_privilege.is_request_additional());
     }
 
+    if (user_privilege.has_user_conf()) {
+        tmp_mem_privilege.mutable_user_conf()->CopyFrom(user_privilege.user_conf());
+    }
     tmp_mem_privilege.set_version(tmp_mem_privilege.version() + 1);
     // 构造key 和 value
     std::string value;

@@ -498,6 +498,10 @@ void MetaStateMachine::on_apply(braft::Iterator& iter) {
             TableManager::get_instance()->unlink_binlog(request, iter.index(), done);
             break;
         }
+        case pb::OP_MODIFY_MAIN_BINLOG_INFO: {
+            TableManager::get_instance()->modify_main_binlog_info(request, iter.index(), done);
+            break;
+        }
         case pb::OP_SET_INDEX_HINT_STATUS: {
             TableManager::get_instance()->set_index_hint_status(request, iter.index(), done);
             break;

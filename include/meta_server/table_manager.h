@@ -219,6 +219,8 @@ public:
     void modify_field(const pb::MetaManagerRequest& request, const int64_t apply_index, braft::Closure* done);
     void link_binlog(const pb::MetaManagerRequest& request, const int64_t apply_index, braft::Closure* done);
     void unlink_binlog(const pb::MetaManagerRequest& request, const int64_t apply_index, braft::Closure* done);
+    void modify_main_binlog_info(const pb::MetaManagerRequest& request, const int64_t apply_index, braft::Closure* done);
+    bool unlink_all_binlog_infos(int64_t table_id, int64_t apply_index, braft::Closure* done);
     void set_index_hint_status(const pb::MetaManagerRequest& request, const int64_t apply_index, braft::Closure* done);
     void add_learner(const pb::MetaManagerRequest& request, const int64_t apply_index, braft::Closure* done);
     void drop_learner(const pb::MetaManagerRequest& request, const int64_t apply_index, braft::Closure* done);
@@ -893,6 +895,30 @@ public:
             return -1;
         }
         idc = {iter->second.schema_pb.resource_tag(), iter->second.schema_pb.main_logical_room(), ""};
+        return 0;
+    }
+    int get_table_leader_idcs(int64_t table_id, std::vector<IdcInfo>& leader_idcs) {
+        DoubleBufferedTableMemMapping::ScopedPtr info;
+        if (_table_mem_infos.Read(&info) != 0) {
+            DB_WARNING("read double_buffer_table error.");
+            return -1;
+        }
+        auto iter = info->table_info_map.find(table_id);
+        if (iter == info->table_info_map.end()) {
+            return -1;
+        }
+        if (iter->second.schema_pb.main_logical_room() != "" ){
+            IdcInfo idc;
+            idc = {iter->second.schema_pb.resource_tag(), iter->second.schema_pb.main_logical_room(), ""};
+            leader_idcs.push_back(idc);
+        } else if (iter->second.schema_pb.dists_size() > 0) {
+            for (auto& dist : iter->second.schema_pb.dists()) {
+                if (dist.can_be_leader()) {
+                    IdcInfo idc = {iter->second.schema_pb.resource_tag(), dist.logical_room(), ""};
+                    leader_idcs.push_back(idc);
+                }
+            }
+        }
         return 0;
     }
     // 获取表副本分布，表副本分布{resource_tag:logical_room:phyiscal_room} -> count
