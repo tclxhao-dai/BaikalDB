@@ -56,12 +56,15 @@ DEFINE_int64(flush_memtable_interval_us, 10 * 60 * 1000 * 1000LL,
 DEFINE_int32(max_background_jobs, 24, "max_background_jobs");
 DEFINE_int32(max_write_buffer_number, 6, "max_write_buffer_number");
 DEFINE_int32(write_buffer_size, 128 * 1024 * 1024, "write_buffer_size");
+DEFINE_int32(raftlog_write_buffer_size, 0, "raftlog cf write_buffer_size, 0 means use write buffer size");
 DEFINE_int32(min_write_buffer_number_to_merge, 2, "min_write_buffer_number_to_merge");
 DEFINE_int32(rocks_binlog_max_files_size_gb, 100, "binlog max size default 100G");
 DEFINE_int32(rocks_binlog_ttl_days, 7, "binlog ttl default 7 days");
 
 DEFINE_int32(level0_file_num_compaction_trigger, 5, "Number of files to trigger level-0 compaction");
+DEFINE_int32(raftlog_level0_file_num_compaction_trigger, 0, "Number of files to trigger level-0 compaction for raftlog cf");
 DEFINE_int32(max_bytes_for_level_base, 1024 * 1024 * 1024, "total size of level 1.");
+DEFINE_int32(raftlog_max_bytes_for_level_base, 1024 * 1024 * 1024, "total size of level 1 for raftlog cf");
 DEFINE_bool(enable_bottommost_compression, false, "enable zstd for bottommost_compression");
 DEFINE_int32(target_file_size_base, 128 * 1024 * 1024, "target_file_size_base");
 DEFINE_int32(addpeer_rate_limit_level, 1, "addpeer_rate_limit_level; "
@@ -171,16 +174,28 @@ int32_t RocksWrapper::init(const std::string& path) {
     _log_cf_option.compaction_pri = rocksdb::kOldestLargestSeqFirst;
     _log_cf_option.table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_options));
     _log_cf_option.compaction_style = rocksdb::kCompactionStyleLevel;
-    _log_cf_option.level0_file_num_compaction_trigger = 5;
+    if (FLAGS_raftlog_level0_file_num_compaction_trigger > 0) {
+        _log_cf_option.level0_file_num_compaction_trigger = FLAGS_raftlog_level0_file_num_compaction_trigger;
+    } else {
+        _log_cf_option.level0_file_num_compaction_trigger = FLAGS_level0_file_num_compaction_trigger;
+    }
     _log_cf_option.level0_slowdown_writes_trigger = FLAGS_slowdown_write_sst_cnt;
     _log_cf_option.level0_stop_writes_trigger = FLAGS_stop_write_sst_cnt;
     _log_cf_option.target_file_size_base = FLAGS_target_file_size_base;
-    _log_cf_option.max_bytes_for_level_base = 1024 * 1024 * 1024;
+    if (FLAGS_raftlog_max_bytes_for_level_base > 0) {
+        _log_cf_option.max_bytes_for_level_base = FLAGS_raftlog_max_bytes_for_level_base;
+    } else {
+        _log_cf_option.max_bytes_for_level_base = FLAGS_max_bytes_for_level_base;
+    }
     _log_cf_option.level_compaction_dynamic_level_bytes = FLAGS_rocks_data_dynamic_level_bytes;
 
     _log_cf_option.max_write_buffer_number = FLAGS_max_write_buffer_number;
     _log_cf_option.max_write_buffer_number_to_maintain = _log_cf_option.max_write_buffer_number;
-    _log_cf_option.write_buffer_size = FLAGS_write_buffer_size;
+    if (FLAGS_raftlog_write_buffer_size > 0) {
+        _log_cf_option.write_buffer_size = FLAGS_raftlog_write_buffer_size;
+    } else {
+        _log_cf_option.write_buffer_size = FLAGS_write_buffer_size;
+    }
     _log_cf_option.min_write_buffer_number_to_merge = FLAGS_min_write_buffer_number_to_merge;
 
     if (FLAGS_raftlog_enable_blob_files) {
