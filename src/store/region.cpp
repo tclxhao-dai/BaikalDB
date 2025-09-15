@@ -1396,6 +1396,12 @@ void Region::exec_kv_out_txn(const pb::StoreReq* request,
     } else if (response->errcode() == pb::SUCCESS) {
         response->set_affected_rows(ret);
         response->set_errcode(pb::SUCCESS);
+        if (state.last_insert_id != INT64_MIN) {
+            response->set_last_insert_id(state.last_insert_id);
+        }
+        if (state.last_value != "") {
+            response->mutable_extra_res()->set_last_value((state.last_value));
+        }
     } else if (response->errcode() == pb::NOT_LEADER) {
         response->set_leader(butil::endpoint2str(get_leader()).c_str());
         DB_WARNING("not leader, region_id: %ld, error_msg:%s", 
