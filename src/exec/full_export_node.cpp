@@ -104,11 +104,11 @@ int FullExportNode::get_next_region_infos() {
     if (scan_index_info.router_index->ranges_size() == 0) {
         scan_index_info.router_index->add_ranges();
     }
+    scan_index_info.router_index->set_left_field_cnt(index_ptr->fields.size());
+    scan_index_info.router_index->set_left_open(false);
     scan_index_info.router_index->mutable_ranges(0)->set_left_key(_last_router_key);
     scan_index_info.router_index->mutable_ranges(0)->set_left_full(true);
     scan_index_info.router_index->mutable_ranges(0)->set_partition_id(_current_partition);
-    scan_index_info.router_index->mutable_ranges(0)->set_left_field_cnt(index_ptr->fields.size());
-    scan_index_info.router_index->mutable_ranges(0)->set_left_open(false);
     int ret = schema_factory->get_region_by_key(main_table_id, 
             *index_ptr, scan_index_info.router_index,
             scan_index_info.region_infos,
@@ -166,15 +166,16 @@ int FullExportNode::calc_last_key(RuntimeState* state, MemRow* mem_row) {
     pos_index.ParseFromString(scan_index_info.raw_index);
     pos_index.set_index_id(main_table_id);
     // fullexport 非eq
-    pos_index.clear_is_eq();
+    pos_index.set_is_eq(false);
     if (pos_index.ranges_size() == 0) {
         pos_index.add_ranges();
     }
+    pos_index.set_left_field_cnt(pri_info->fields.size());
+    pos_index.set_left_open(true);
     pos_index.mutable_ranges(0)->set_left_key(key.data());
     pos_index.mutable_ranges(0)->set_partition_id(_current_partition);
     pos_index.mutable_ranges(0)->set_left_full(key.get_full());
-    pos_index.mutable_ranges(0)->set_left_field_cnt(pri_info->fields.size());
-    pos_index.mutable_ranges(0)->set_left_open(true);
+
     pos_index.SerializeToString(&scan_index_info.raw_index);
     return 0;
 }
