@@ -35,49 +35,76 @@ DEFINE_string(dest_database_name, "", "destination mysql database name");
 
 class LoadWorker {
 public:
-    LoadWorker(const int64_t& table_id, const baikaldb::TableInfo& table_info,
-               const std::unordered_map<int64_t, baikaldb::SmartIndex>& index_info_map, std::mutex* mutex,
-               std::queue<SQLRecord>* q, RegionTask& task) : _table_id(table_id),
-                                                             _table_info(table_info), _index_info_map(index_info_map),
-                                                             _mutex(mutex),
-                                                             _q(q), _task(task) {}
+    LoadWorker(const int64_t& table_id,
+               const baikaldb::TableInfo& table_info,
+               const std::unordered_map<int64_t, baikaldb::SmartIndex>& index_info_map,
+               std::mutex* queue_mutex,
+               std::condition_variable* cv,
+               std::queue<SQLRecord>* q,
+               RegionTask& task)
+        : _table_id(table_id),
+          _table_info(table_info),
+          _index_info_map(index_info_map),
+          _queue_mutex(queue_mutex),
+          _cv(cv),
+          _q(q),
+          _task(task) {}
 
     auto process() -> Status {
+        DB_WARNING("region %ld start to throw record to queue, path: %s",
+                   _task._region_id, _task._path.c_str());
+
         init();
-        SSTParser parser = SSTParser(_task._path, _index_info_map, _table_info, _pk_index_info, pk_fields);
+
+        SSTParser parser(_task._path, _index_info_map, _table_info, _pk_index_info, pk_fields);
         auto status = parser.init();
         if (!status.ok()) {
-            DB_FATAL("init sst parser fail, path: %s, err: %s", _task._path.c_str(), status.message().c_str());
+            DB_FATAL("init sst parser fail, path: %s, err: %s",
+                     _task._path.c_str(), status.message().c_str());
             return status;
         }
+
         int all = 0;
-        while (true) {
+        for (;;) {
             std::vector<std::vector<std::pair<bool, std::string>>> rows;
             size_t row_cnt = parser.fetch_records(_batch_size, rows);
-            enqueue_record(rows);
-            DB_WARNING("enqueue %d rows", row_cnt);
-            all += row_cnt;
-            if (row_cnt < _batch_size) {
-                std::cout << all << std::endl;
-                break;
-            }
-            DB_WARNING("region %ld process %ld rows", _task._region_id, all);
+
+            // 将 rows 转成 SQLRecord 批次（请按你的字段/表结构实现）
+            // std::vector<SQLRecord> batch;
+            // batch.reserve(rows.size());
+            // for (auto& row : rows) {
+            //     batch.emplace_back(build_sql_record(row)); // TODO: 实现该转换
+            // }
+
+            enqueue_records(rows);
+            all += static_cast<int>(row_cnt);
+
+            if (row_cnt < _batch_size) break;
         }
 
+        DB_WARNING("region %ld done, total rows: %d", _task._region_id, all);
         return StatusCode::kOk;
     }
 
 private:
-    auto enqueue_record(std::vector<SQLRecord>& record) -> void {
-        DB_WARNING("queue size: %d", _q->size());
-        while (_q->size() > FLAGS_max_record_queue_size) {
-            usleep(1000 * 100);
+    // TODO: 根据你的 TableInfo/IndexInfo 构造 SQLRecord
+    inline SQLRecord build_sql_record(const std::vector<std::pair<bool, std::string>>& row) {
+        SQLRecord rec;
+        // 填充 rec ...
+        return rec;
+    }
+
+    // 有界队列入队：队满则等待；每 push 一个检查一次容量
+    void enqueue_records(std::vector<SQLRecord>& records) {
+        std::unique_lock<std::mutex> lk(*_queue_mutex);
+        for (auto& r : records) {
+            _cv->wait(lk, [&] {
+                return _q->size() < FLAGS_max_record_queue_size;
+            });
+            _q->push(std::move(r));
         }
-        _mutex->lock();
-        for (size_t i = 0; i < record.size(); i++) {
-            _q->emplace(record[i]);
-        }
-        _mutex->unlock();
+        lk.unlock();
+        _cv->notify_one(); // 唤醒消费者
     }
 
     auto init() -> Status {
@@ -94,100 +121,176 @@ private:
         return StatusCode::kOk;
     }
 
+private:
     int64_t _table_id = 0;
     size_t _batch_size = 64;
+
     const baikaldb::TableInfo& _table_info;
     const std::unordered_map<int64_t, baikaldb::SmartIndex>& _index_info_map;
     baikaldb::SmartIndex _pk_index_info;
     std::unordered_set<int64_t> pk_fields;
-    RegionTask& _task;
-    std::queue<SQLRecord>* _q;
-    std::mutex* _mutex;
-};
 
+    RegionTask& _task;
+
+    std::mutex* _queue_mutex{nullptr};
+    std::condition_variable* _cv{nullptr};
+    std::queue<SQLRecord>* _q{nullptr};
+};
 
 class TableScheduler {
 public:
     TableScheduler(int64_t table_id, std::string table_name, std::string rewrite_name,
-                   const baikaldb::TableInfo& table_info, std::vector<int64_t>& regions, std::queue<RegionTask>& tasks,
+                   const baikaldb::TableInfo& table_info, std::vector<int64_t>& regions,
+                   std::queue<RegionTask>& tasks,
                    const std::unordered_map<int64_t, baikaldb::SmartIndex>& index_info_map,
-                   SQLExec* exec) : _table_id(table_id),
-                                    _table_name(table_name), _rewrite_name(rewrite_name), _table_info(table_info),
-                                    _index_info_map(index_info_map),
-                                    _regions(regions), _tasks(tasks), _sql_exec(exec) {
+                   SQLExec* exec)
+        : _table_id(table_id),
+          _table_name(std::move(table_name)),
+          _rewrite_name(std::move(rewrite_name)),
+          _table_info(table_info),
+          _index_info_map(index_info_map),
+          _regions(regions),
+          _tasks(tasks),
+          _sql_exec(exec) {
         _load_concurrency = FLAGS_load_concurrency;
         _receive_queue_num = FLAGS_receive_queue_num;
         _sql_batch_size = FLAGS_sql_batch_size;
     }
 
     auto process_one_region() -> Status {
-        task_mutex.lock();
+        std::lock_guard<std::mutex> lk(task_mutex);
         if (_tasks.empty()) {
-            _done = true;
-            task_mutex.unlock();
+            DB_WARNING("table %s all regions done", _table_name.c_str());
             return StatusCode::kOk;
         }
         auto task = _tasks.front();
+        DB_WARNING("start to process region: %ld, remain regions: %zu",
+                   task._region_id, _tasks.size());
         _tasks.pop();
-        task_mutex.unlock();
-        LoadWorker worker(task._table_id, _table_info, _index_info_map, &_queue_mutex, &_exec_queue, task);
+
+        // 生产者：把记录塞到共享队列（使用同一把 mutex + cv）
+        LoadWorker worker(task._table_id, _table_info, _index_info_map,
+                          &_queue_mutex, &_cv, &_exec_queue, task);
         worker.process();
+
+        DB_WARNING("process region: %ld done", task._region_id);
         return StatusCode::kOk;
     }
 
-    auto process() -> void {
-        baikaldb::Bthread bth;
-        bth.run([this] {
-            this->exec_sql_thread();
-        });
-        baikaldb::ConcurrencyBthread cbth(_load_concurrency);
-        while (!_tasks.empty()) {
-            cbth.run([this] {
-                DB_WARNING("xxx")
-                this->process_one_region();
-            });
-        }
-        cbth.join();
-        bth.join();
+    Status process_one_region_nolock(RegionTask task) {
+        LoadWorker worker(task._table_id, _table_info, _index_info_map,
+                          &_queue_mutex, &_cv, &_exec_queue, task);
+        auto st = worker.process();
+        DB_WARNING("process region: %ld done", task._region_id);
+        return st;
     }
 
+    auto process() -> void {
+        DB_WARNING("table: %s start, region num: %zu", _table_name.c_str(), _regions.size());
 
-    auto exec_sql_thread() -> void {
-        while (!_done) {
-            if (_exec_queue.empty()) {
-                usleep(1000 * 100);
-                continue;
+        baikaldb::Bthread bth;
+        bth.run([this] { this->exec_sql_thread(); });
+
+        baikaldb::ConcurrencyBthread cbth(_load_concurrency);
+        for (;;) {
+            std::lock_guard<std::mutex> lk(task_mutex);
+            if (_tasks.empty()) break;
+            RegionTask task = _tasks.front();
+            _tasks.pop();
+            DB_WARNING("start to process region: %ld, remain regions: %zu", task._region_id, _tasks.size());
+
+            cbth.run([this, task] { this->process_one_region_nolock(task); });
+        }
+
+        cbth.join(); // 先等所有生产者结束
+        mark_done(); // 再宣布 done，消费者会 drain 干净后退出
+        bth.join();
+
+        DB_WARNING("table: %s done, region num: %zu", _table_name.c_str(), _regions.size());
+    }
+
+    //（可选）若别处也要直接 push，可保留此接口
+    void push_record(SQLRecord r) {
+        {
+            std::lock_guard<std::mutex> lk(_queue_mutex);
+            if (_done) {
+                DB_WARNING("push after done ignored");
+                return;
             }
-            std::vector<SQLRecord> records;
-            _queue_mutex.lock();
-            for (size_t i = 0; i < _sql_batch_size && !_exec_queue.empty(); i++) {
-                records.emplace_back(_exec_queue.front());
+            _exec_queue.push(std::move(r));
+        }
+        _cv.notify_one();
+    }
+
+    void mark_done() {
+        {
+            std::lock_guard<std::mutex> lk(_queue_mutex);
+            _done = true;
+        }
+        _cv.notify_all();
+    }
+
+    void exec_sql_thread() {
+        DB_WARNING("exec sql thread start");
+        std::vector<SQLRecord> batch;
+        batch.reserve(_sql_batch_size);
+
+        for (;;) {
+            batch.clear();
+
+            std::unique_lock<std::mutex> lk(_queue_mutex);
+            _cv.wait(lk, [&] {
+                return !_exec_queue.empty() || _done;
+            });
+
+            // 只有“空 && done”才退出；确保把剩余都处理完
+            if (_exec_queue.empty() && _done) {
+                break;
+            }
+
+            size_t before = _exec_queue.size();
+            while (!_exec_queue.empty() && batch.size() < _sql_batch_size) {
+                batch.emplace_back(std::move(_exec_queue.front()));
                 _exec_queue.pop();
             }
-            _queue_mutex.unlock();
-            _sql_exec->insert_rows(records, _sql_batch_size);
+            size_t after = _exec_queue.size();
+            lk.unlock();
+
+            // 队列变小了，唤醒可能在等“队列不满”的生产者
+            _cv.notify_all();
+
+            DB_WARNING("get %zu records from queue, queue: %zu -> %zu",
+                       batch.size(), before, after);
+
+            _sql_exec->insert_rows(batch, _sql_batch_size);
         }
+
+        DB_WARNING("exec sql thread done");
     }
 
 private:
     int64_t _table_id = 0;
     std::string _table_name;
     std::string _rewrite_name;
+
     const baikaldb::TableInfo& _table_info;
     const std::unordered_map<int64_t, baikaldb::SmartIndex>& _index_info_map;
+
     size_t _load_concurrency = 1;
     size_t _receive_queue_num = 1;
     size_t _sql_batch_size = 500;
 
+    // 共享队列 & 同步原语
     std::mutex _queue_mutex;
+    std::condition_variable _cv;
     std::queue<SQLRecord> _exec_queue;
+    bool _done = false;
 
-    std::vector<int64_t>& _regions;
-
+    // 任务列表
     std::mutex task_mutex;
     std::queue<RegionTask>& _tasks;
+    std::vector<int64_t>& _regions;
 
-    bool _done = false;
     SQLExec* _sql_exec = nullptr;
     std::string _create_sql;
 };
@@ -200,15 +303,21 @@ public:
         _mysql_batch_size = cfg._mysql_batch_size;
         _load_path = cfg._load_path;
         _table_rewrite = cfg._table_rewrite;
-        for (const std::string& table : cfg._tables) {
-            _table_rewrite[table] = table;
+        //if no table rules, load all tables without rewrite
+        if (cfg._tables.size() == 0 && cfg._table_rewrite.size() == 0) {
+            _all_tables = true;
         }
-        for (const auto& [ori,dst] : cfg._table_rewrite) {
-            _table_rewrite[ori] = dst;
-        }
-        for (auto const& [k,v] : _table_rewrite) {
-            _src_tables.emplace_back(k);
-            _dst_tables.emplace_back(v);
+        else {
+            for (const std::string& table : cfg._tables) {
+                _table_rewrite[table] = table;
+            }
+            for (const auto& [ori,dst] : cfg._table_rewrite) {
+                _table_rewrite[ori] = dst;
+            }
+            for (auto const& [k,v] : _table_rewrite) {
+                _src_tables.emplace_back(k);
+                _dst_tables.emplace_back(v);
+            }
         }
         _src_ns_name = cfg._namespace;
         _src_database_name = cfg._database;
@@ -232,6 +341,7 @@ public:
         for (fs::directory_iterator table_it(load_path, err_table), end; table_it != end; table_it.
              increment(err_table)) {
             std::string table_name = table_it->path().filename();
+            //if (table_name == "check_record") continue;
             if (err_table) {
                 DB_FATAL("iterate path %s err:%s", table_it->path().c_str(), err_table.message().c_str());
                 exit(1);
@@ -261,20 +371,34 @@ public:
     }
 
     auto run() -> Status {
+        MySQLConfig config;
+        config._host = FLAGS_dest_host;
+        config._port = FLAGS_dest_port;
+        config._user = FLAGS_dest_user;
+        config._password = FLAGS_dest_password;
+        config._database = FLAGS_dest_database_name;
+        config._timeout_sec = 5;
+        SQLExec exec(config, 100, "", "");
+        exec.init();
         for (const auto& [table_id,table_info] : _table_info_map) {
-            MySQLConfig config;
-            config._host = FLAGS_dest_host;
-            config._port = FLAGS_dest_port;
-            config._user = FLAGS_dest_user;
-            config._password = FLAGS_dest_password;
-            config._database = FLAGS_dest_database_name;
-            config._timeout_sec = 5;
-            SQLExec exec(config, 100, _table_insert_sql_tpl_map[table_id], "");
-            exec.init();
+            //if (table_info.short_name=="check_record") continue;
+            DB_WARNING("---------");
+            DB_WARNING("start to run table %s", table_info.name.c_str());
+            DB_WARNING("start create table %s", table_info.name.c_str());
+            exec.set_create_table_sql(_table_create_sql_map[table_id]);
+            exec.set_insert_tpl(_table_insert_sql_tpl_map[table_id]);
+            bool create = exec.ensure_table();
+            if (!create) {
+                DB_FATAL("ensure table %s failed", table_info.name.c_str());
+                exit(1);
+            }
+            DB_WARNING("create table %s done", table_info.name.c_str());
+            //usleep(10*1000 * 1000);
             TableScheduler table_scheduler(table_id, table_info.name, _table_rewrite[table_info.name], table_info,
                                            table_region_map[table_id], _tasks[table_id], _idx_mp, &exec);
+
             table_scheduler.process();
-            exec.shutdown();
+            //exec.shutdown();
         }
         return StatusCode::kOk;
     }
@@ -305,9 +429,17 @@ private:
             return StatusCode::kInternal;
         }
         for (auto schema_info : response.schema_infos()) {
-            if (schema_info.namespace_name() == _src_ns_name &&
-                schema_info.database() == _src_database_name &&
-                _table_rewrite.find(schema_info.table_name()) != _table_rewrite.end()) {
+            if (_all_tables) {
+                _table_rewrite[schema_info.table_name()] = schema_info.table_name();
+                _src_tables.emplace_back(schema_info.table_name());
+                _dst_tables.emplace_back(schema_info.table_name());
+            }
+            if (_all_tables || (
+                    schema_info.namespace_name() == _src_ns_name &&
+                    schema_info.database() == _src_database_name &&
+                    _table_rewrite.find(schema_info.table_name()) != _table_rewrite.end()
+                )
+            ) {
                 TableBuilder tb(schema_info.table_id());
                 baikaldb::TableInfo table_info = baikaldb::TableInfo();
 
@@ -316,6 +448,7 @@ private:
                 _full_name_id_mp[build_key(schema_info.table_name())] = schema_info.table_id();
                 _table_insert_sql_tpl_map[schema_info.table_id()] = gen_table_insert_tpl(
                     FLAGS_dest_database_name, _table_rewrite[table_info.short_name], table_info);
+                _table_create_sql_map[schema_info.table_id()] = gen_create_table_sql(table_info);
             }
         }
         return StatusCode::kOk;
@@ -348,6 +481,20 @@ private:
         return oss.str();
     }
 
+    auto gen_create_table_sql(const baikaldb::TableInfo& table_info) -> std::string {
+        std::ostringstream oss;
+        std::string rewrite_table_name = _table_rewrite[table_info.short_name];
+        baikaldb::ShowHelper::_build_create_table_sql(oss, rewrite_table_name, table_info, _idx_mp, true);
+        std::string ret = oss.str();
+        //const size_t pos = ret.find("`");
+        // if (pos == std::string::npos) {
+        //     DB_FATAL("gen create table sql fail, table: %s", table_info.name.c_str());
+        //     exit(1);
+        // }
+        //ret.insert(pos, "IF NOT EXISTS ");
+        return ret;
+    }
+
     uint32_t _max_region_concurrency;
     uint32_t _mysql_exec_concurrency;
     uint32_t _mysql_batch_size;
@@ -358,6 +505,7 @@ private:
     std::string _src_ns_name;
     std::string _src_database_name;
 
+    bool _all_tables = false;
     std::vector<std::string> _src_tables;
     std::vector<std::string> _dst_tables;
 
@@ -378,6 +526,7 @@ private:
     std::unordered_map<int64_t, baikaldb::TableInfo> _table_info_map;
     std::unordered_map<int64_t, std::string> _table_insert_sql_tpl_map;
     std::unordered_map<int64_t, baikaldb::SmartIndex> _idx_mp;
+    std::unordered_map<int64_t, std::string> _table_create_sql_map;
 };
 }
 

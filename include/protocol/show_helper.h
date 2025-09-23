@@ -20,6 +20,7 @@
 #include "network_socket.h"
 #include "meta_server_interact.hpp"
 #include "mysql_wrapper.h"
+#include "schema_factory.h"
 #include "proto/store.interface.pb.h"
 
 const std::string SQL_SHOW_ABNORMAL_REGIONS      = "abnormal";              // show abnormal regions;
@@ -93,6 +94,8 @@ public:
     bool execute(const SmartSocket& client);
     bool _handle_client_query_template(const SmartSocket& client, const std::string& field_name, int32_t data_type,
                                        const std::vector<std::string>& values);
+    // help for show create table
+    static void _build_create_table_sql(std::ostringstream& oss, const std::string& table_name, const TableInfo& table_info, const std::unordered_map<int64_t,  SmartIndex>& index_map, bool compatible);
 private:
     ShowHelper() {
     }

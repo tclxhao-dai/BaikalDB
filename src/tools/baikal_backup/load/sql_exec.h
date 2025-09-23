@@ -24,14 +24,26 @@ public:
           insert_tpl_(std::move(insert_values_template)),
           create_table_sql_(std::move(create_table_sql)) {
         if (pool_size_ == 0) pool_size_ = 1;
-        col_count_ = parse_column_count(insert_tpl_);
-        if (col_count_ <= 0) {
-            throw std::invalid_argument("Failed to parse column count from insert template: " + insert_tpl_);
-        }
+        // col_count_ = parse_column_count(insert_tpl_);
+        // if (col_count_ <= 0) {
+        //     throw std::invalid_argument("Failed to parse column count from insert template: " + insert_tpl_);
+        // }
     }
 
     ~SQLExec() {
         shutdown();
+    }
+
+    auto set_create_table_sql(const std::string& sql) -> void {
+        create_table_sql_ = sql;
+    }
+
+    auto set_insert_tpl(const std::string& tpl) -> void {
+        insert_tpl_ = tpl;
+        col_count_ = parse_column_count(insert_tpl_);
+        if (col_count_ <= 0) {
+            throw std::invalid_argument("Failed to parse column count from insert template: " + insert_tpl_);
+        }
     }
 
     // 1) 初始化连接池（线程安全，仅第一次有效）
@@ -64,8 +76,13 @@ public:
 
         if (mysql_query(guard.get(), sql.c_str()) != 0) {
             last_error_ = mysql_error(guard.get());
+            if (last_error_== "table already exist") {
+                goto end;
+            }
+            DB_FATAL("exec sql failed: %s, sql: %s", last_error_.c_str(), sql.c_str());
             return false;
         }
+        end:
         // consume result if any
         MYSQL_RES* res = mysql_store_result(guard.get());
         if (res) mysql_free_result(res);
@@ -75,6 +92,7 @@ public:
     // 5) 执行建表 SQL
     bool ensure_table() {
         if (create_table_sql_.empty()) return true;
+        DB_WARNING("create sql: %s", create_table_sql_.c_str());
         return exec_sql(create_table_sql_);
     }
 
@@ -82,8 +100,11 @@ public:
     // rows: 每一行大小必须 == 由模板解析出来的列数
     // batch_size: 一次 statement 中的行数（避免 SQL 太长或参数过多）
     bool insert_rows(const std::vector<std::vector<std::pair<bool,std::string>>>& rows, size_t batch_size = 1000) {
+        DB_WARNING("start insert %ld rows into %s", rows.size(), _cfg._database.c_str());
         if (rows.empty()) return true;
-        if (!inited_ && !init()) return false;
+        if (!inited_ && !init()) {
+            return false;
+        }
 
         // 基本校验
         for (const auto& r : rows) {
@@ -93,7 +114,7 @@ public:
                 return false;
             }
         }
-
+        DB_WARNING("base check ok")
         const size_t max_params_per_stmt = 65535; // MySQL/MariaDB 参数个数上限
         size_t safe_batch = std::min(batch_size, max_params_per_stmt / (size_t)col_count_);
         if (safe_batch == 0) safe_batch = 1;
@@ -102,10 +123,12 @@ public:
         while (i < rows.size()) {
             size_t n = std::min(safe_batch, rows.size() - i);
             if (!insert_rows_one_stmt({rows.begin() + i, rows.begin() + i + n})) {
+                DB_WARNING("insert rows failed: %s", last_error_.c_str());
                 return false;
             }
             i += n;
         }
+        DB_WARNING("table %s insert %ld rows done", _cfg._database.c_str(), i);
         return true;
     }
 
@@ -228,8 +251,12 @@ private:
 
     bool insert_rows_one_stmt(const std::vector<std::vector<std::pair<bool,std::string>>>& batch) {
         auto guard = acquire();
-        if (!guard) { last_error_ = "acquire connection failed"; return false; }
+        if (!guard) {
+            last_error_ = "acquire connection failed";
+            return false;
+        }
 
+        DB_WARNING("acquire conn %p", guard.get());
         // 组装完整 SQL： "<tpl> VALUES (?,?),(?,?)..."
         std::string sql = insert_tpl_;
         // 允许模板结尾带/不带 "VALUES"（都兼容）
@@ -243,7 +270,10 @@ private:
         sql += make_values_placeholders(batch.size(), col_count_);
 
         MYSQL_STMT* stmt = mysql_stmt_init(guard.get());
-        if (!stmt) { last_error_ = "mysql_stmt_init failed"; return false; }
+        if (!stmt) {
+            last_error_ = "mysql_stmt_init failed";
+            return false;
+        }
 
         auto cleanup_stmt = [&](){ mysql_stmt_close(stmt); };
 
