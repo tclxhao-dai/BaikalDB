@@ -36,6 +36,7 @@ DEFINE_int64(1pc_out_fsm_interval_us, 20 * 1000 * 1000LL,
 // 分裂slow down max time：5s
 DEFINE_int32(transaction_query_primary_region_interval_ms, 15 * 1000,
         "interval duration send request to primary region");
+DEFINE_int32(update_primary_region_max_seq_s, 10, "query primary for update max seq id, 0 means ignore");
 
 int TransactionPool::init(int64_t region_id, bool use_ttl, int64_t online_ttl_base_expire_time_us) {
     _region_id = region_id;
@@ -592,7 +593,7 @@ void TransactionPool::clear_transactions(Region* region) {
         // 10s未更新的事务询问primary region事务状态
         // 存活大于10s的事务，请求primary region，用于primary 使用最大seq_id更新active time
         } else if (cur_time - txn->last_active_time > FLAGS_transaction_query_primary_region_interval_ms * 1000LL
-            || (!txn->is_primary_region() && !txn->has_query_primary && cur_time - txn->begin_time > 1000 * 1000LL)) {
+            || (!txn->is_primary_region() && !txn->has_query_primary && (FLAGS_update_primary_region_max_seq_s > 0 && cur_time - txn->begin_time > FLAGS_update_primary_region_max_seq_s * 1000 * 1000LL ))) {
             txn->has_query_primary = true;
             txns_need_query_primary.emplace_back(txn->txn_id());
         }

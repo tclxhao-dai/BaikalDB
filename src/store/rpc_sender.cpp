@@ -79,8 +79,9 @@ int RpcSender::send_query_method(const pb::StoreReq& request,
     auto ret = store_interact.send_request_for_leader(log_id, "query", request, response);
     if (ret == 0) {
         if (time_cost.get_time() > FLAGS_print_time_us) {
-            DB_WARNING("send request to new region success,"
+            DB_WARNING("send request to new region success, op_type: %d"
                     " response:%s, receive_region_id: %ld, time_cost:%ld",
+                    request.op_type(),
                     pb2json(response).c_str(),
                     receive_region_id,
                     time_cost.get_time());
