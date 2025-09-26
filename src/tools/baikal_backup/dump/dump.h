@@ -16,6 +16,8 @@
 #include <vector>
 #include <debug.h>
 
+#include "progress.h"
+
 static  bvar::Adder<uint> g_dump_success_count("dump_success_count");
 static  bvar::Adder<uint> g_dump_fail_count("dump_fail_count");
 static  bvar::Adder<uint> g_dump_total_count("dump_total_count");
@@ -48,6 +50,7 @@ public:
     while (!Done()) {
       auto task = Dequeue();
       bth.run([this,task]{
+        DB_WARNING("start to process region %ld",task->_region_id);
         g_dump_processing_count << 1;
         if (const auto ret = process_one_task(*task); !ret.ok()) {
           g_dump_fail_count << 1;
@@ -174,6 +177,9 @@ public:
       }
       bth.join();
     }while (update_new_region());
+    DB_WARNING("processing:%d,success:%d,fail:%d,total:%d",g_dump_processing_count.get_value(),
+               g_dump_success_count.get_value(),g_dump_fail_count.get_value(),g_dump_total_count.get_value());
+    delete _progress;
   }
 
 
@@ -253,7 +259,9 @@ public:
         _worker_map[worker_id]->Enqueue(task);
 
       }
-    }
+    }_progress = new ProgressFile(_dump_path,"dump",g_dump_total_count.get_value(),&g_dump_success_count);
+    _progress->start(10);
+
 DEBUG_ONLY({
       int cnt =0;
       for (auto const [k,v] : _worker_map) {
@@ -280,6 +288,8 @@ private:
   std::unordered_map<std::string,baikaldb::pb::SchemaInfo> _schema_info_map;
   std::map<std::string,DumpWorker*> _worker_map; // key is worker id, ip/ip:port,decided by load balance type
   int _concurrency = 1;   // concurrency for each store/machine(decided by _balance_by_machine)
+
+  ProgressFile* _progress;
 
   bool _download_from_leader = true;
   bool _balance_by_machine =false;
@@ -322,6 +332,7 @@ private:
       std::string table_key = build_key(region_info.table_name());
       _table_region_ids[table_key].emplace_back(region_info.region_id());
       _table_region_info_map[table_key].emplace_back(region_info);
+      g_dump_total_count << 1;
     }
 
 DEBUG_ONLY({

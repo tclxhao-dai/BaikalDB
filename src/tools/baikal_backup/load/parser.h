@@ -15,6 +15,10 @@
 
 #include <schema_factory.h>
 
+#include "expr_value.h"
+#include "expr_value.h"
+#include "expr_value.h"
+
 using google::protobuf::FileDescriptor;
 
 namespace backup_tool {
@@ -90,8 +94,9 @@ public:
     }
 
 private:
-    auto _it2col_val(std::vector<std::pair<bool, std::string>>& res) -> bool {
+    auto _it2col_val(std::vector<baikaldb::ExprValue>& res) -> bool {
         //process pk of record;
+        baikaldb::ExprValue
         Message* k_msg = _table_info.msg_proto->New();
         baikaldb::TableKey pk(_it->key());
         int pos = sizeof(int64_t) * 2;

@@ -6,6 +6,7 @@
 //
 #include "support/config.h"
 #include "dump.h"
+#include "support/progress.h"
 #include "support/retry.h"
 #include "dump.h"
 #include <support/file_system.h>

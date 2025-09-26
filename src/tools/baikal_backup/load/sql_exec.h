@@ -24,10 +24,6 @@ public:
           insert_tpl_(std::move(insert_values_template)),
           create_table_sql_(std::move(create_table_sql)) {
         if (pool_size_ == 0) pool_size_ = 1;
-        // col_count_ = parse_column_count(insert_tpl_);
-        // if (col_count_ <= 0) {
-        //     throw std::invalid_argument("Failed to parse column count from insert template: " + insert_tpl_);
-        // }
     }
 
     ~SQLExec() {
