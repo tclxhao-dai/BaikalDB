@@ -8,14 +8,11 @@
 #include <string>
 #include <chrono>
 #include <fcntl.h>
-#include <sys/stat.h>
 #include <sys/types.h>
-#include <unistd.h>
-#include "bvar/bvar.h"
+
+#include "expr_value.h"
+#include "schema_factory.h"
 #include "bthread/bthread.h"
-#include "type.h"
-#include "dump/dump.h"
-#include "dump/dump.h"
 
 namespace backup_tool {
 
