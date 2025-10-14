@@ -15,6 +15,7 @@
 cmake_minimum_required(VERSION 3.2)
 project(BaikalDB C CXX)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(WITH_BAIKAL_CLIENT "build baikal-client" ON)
 option(DEBUG "Print debug logs" OFF)
 option(WITH_SYSTEM_LIBS "use system installed headers and libraries instead of auto dependency" OFF)
@@ -308,6 +309,7 @@ else ()
     include(arrow)
 endif ()
 
+
 message(CUR_DIR : ${CMAKE_CURRENT_BINARY_DIR}, SRC_DIR : ${CMAKE_SOURCE_DIR})
 
 file(GLOB PROTO_FILES ${CMAKE_SOURCE_DIR}/proto/*.proto)
@@ -583,4 +585,24 @@ if (WITH_TOOLS)
     add_dependencies(sst_backup_load common)
     target_include_directories(sst_backup_load PUBLIC ${BAIKAL_BACKUP_INC})
     target_link_libraries(sst_backup_load PUBLIC common ${DEP_LIB})
+endif ()
+
+#tests
+if (WITH_TESTS)
+    enable_testing()
+    include(third_gtest)
+    include(GoogleTest)
+    
+    file(GLOB TEST_FILES "${CMAKE_SOURCE_DIR}/src/tools/baikal_backup/support/type_test.cpp")
+    add_library(project_coverage INTERFACE)
+    # 推荐：-O0 -g 更稳定；只想最小改动也至少保留 --coverage
+    target_compile_options(project_coverage INTERFACE -O0 -g --coverage)
+    target_link_options(project_coverage    INTERFACE --coverage)
+
+
+    add_executable(hello_test ${TEST_FILES} )
+    add_dependencies(hello_test common extern_mariadb)
+    target_include_directories(hello_test PUBLIC ${COMMON_INC})
+    target_link_libraries(hello_test PUBLIC GTest::gtest_main common ${DEP_LIB} project_coverage)
+    gtest_discover_tests(hello_test)
 endif ()

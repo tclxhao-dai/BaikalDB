@@ -4,7 +4,7 @@
 
 #include <config.h>
 #include <load/load.h>
-#include <load/parser.h>
+#include <load/parse_record.h>
 #include <table_record.h>
 
 int main(int argc, char *argv[]) {

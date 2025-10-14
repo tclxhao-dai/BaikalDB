@@ -1,4 +1,5 @@
 #pragma once
+#include "expr_value.h"
 #include <string>
 #include <vector>
 #include <queue>
@@ -95,7 +96,7 @@ public:
     // 3) + 4) 将 rows 组装为多值占位符的 prepared statement 并执行批量插入
     // rows: 每一行大小必须 == 由模板解析出来的列数
     // batch_size: 一次 statement 中的行数（避免 SQL 太长或参数过多）
-    bool insert_rows(const std::vector<std::vector<std::pair<bool,std::string>>>& rows, size_t batch_size = 1000) {
+    bool insert_rows(const std::vector<std::vector<baikaldb::ExprValue>>& rows, size_t batch_size = 1000) {
         DB_WARNING("start insert %ld rows into %s", rows.size(), _cfg._database.c_str());
         if (rows.empty()) return true;
         if (!inited_ && !init()) {
@@ -245,7 +246,7 @@ private:
         return oss.str();
     }
 
-    bool insert_rows_one_stmt(const std::vector<std::vector<std::pair<bool,std::string>>>& batch) {
+    bool insert_rows_one_stmt(const std::vector<std::vector<baikaldb::ExprValue>>& batch) {
         auto guard = acquire();
         if (!guard) {
             last_error_ = "acquire connection failed";
@@ -288,7 +289,7 @@ private:
         size_t p = 0;
         for (const auto& row : batch) {
             for (int c = 0; c < col_count_; ++c) {
-                if (row[c].first) {
+                if (row[c].is_null()) {
                     is_null[p] = 0;
                 }
                 const std::string& v = row[c].second;

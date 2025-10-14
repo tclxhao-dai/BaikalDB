@@ -1,0 +1,31 @@
+{
+    //"search.followSymlinks": false,
+    "terminal.integrated.defaultProfile.linux": "zsh",
+    //"C_Cpp.default.intelliSenseMode": "gcc-x64",
+    //"C_Cpp.intelliSenseCacheSize": 102400,
+    "C_Cpp.intelliSenseEngine": "disabled",
+    "C_Cpp.autocomplete": "disabled",
+    "C_Cpp.errorSquiggles": "disabled",
+    "clangd.path": "/home/work/soft/clangd/bin/clangd",
+    "clangd.arguments": [
+        "--compile-commands-dir=${workspaceFolder}/cmake-build-debug",
+        "--query-driver=/opt/rh/devtoolset-10/**",
+        "--completion-style=detailed",
+        "--suggest-missing-includes",
+        "--all-scopes-completion",
+        "--pch-storage=memory",
+        "--cross-file-rename",
+        "--background-index",
+        "--log=verbose",
+        //"--clang-tidy",
+        "--pretty",
+        "--clang-tidy",
+    "--clang-tidy-checks=performance-*,bugprone-*",
+    // 全局补全（会自动补充头文件）
+    "--all-scopes-completion",
+    // 更详细的补全内容
+    "--completion-style=detailed",
+    // 补充头文件的形式
+    "--header-insertion=iwyu",
+    ]
+}

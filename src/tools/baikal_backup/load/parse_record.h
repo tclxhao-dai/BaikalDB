@@ -75,11 +75,11 @@ public:
     }
 
     auto fetch_records(const size_t rows,
-                       std::vector<std::vector<std::pair<bool, std::string>>>& res)
+                       std::vector<std::vector<baikaldb::ExprValue>>& res)
         -> size_t {
         size_t cnt = 0;
         for (; _it->Valid(); _it->Next()) {
-            std::vector<std::pair<bool, std::string>> tmp;
+            std::vector<baikaldb::ExprValue> tmp;
             _it2col_val(tmp);
             res.emplace_back(tmp);
             ++cnt;
@@ -91,7 +91,7 @@ public:
     }
 
 private:
-    auto _it2col_val(std::vector<std::pair<bool,std::string>>& res) -> bool {
+    auto _it2col_val(std::vector<baikaldb::ExprValue>& res) -> bool {
         //process pk of record;
         Message* k_msg = _table_info.msg_proto->New();
         baikaldb::TableKey pk(_it->key());
@@ -110,13 +110,19 @@ private:
             }
             std::string val;
             bool is_null = false;
+            int32_t field_id = field_info.id;
+            baikaldb::pb::PrimitiveType field_type = field_info.type;
+            const google::protobuf::FieldDescriptor* field ;
+            baikaldb::ExprValue v;
             if (_pk_fields.find(field_info.pb_idx) != _pk_fields.end()) {
-                pk_record.field_to_string(field_info, &val, &is_null);
+                field = pk_record.get_field_by_idx(field_info.pb_idx);
+                v = pk_record.get_value(field);
             }
             else {
-                value_record.field_to_string(field_info, &val, &is_null);
+                field = value_record.get_field_by_idx(field_info.pb_idx);
+                v = value_record.get_value(field);
             }
-            res.emplace_back(std::make_pair(is_null, val));
+            res.emplace_back(v);
         }
         return true;
     }

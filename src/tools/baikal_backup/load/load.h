@@ -5,7 +5,7 @@
 #ifndef LOAD_H
 #define LOAD_H
 #include <baikal_heartbeat.h>
-#include <config.h>
+#include <support/config.h>
 #include <cstdint>
 #include <map>
 #include <task.h>
@@ -13,13 +13,13 @@
 #include <json2pb/json_to_pb.h>
 #include <filesystem>
 
-#include "parser.h"
+#include "parse_record.h"
 #include <load/sql_exec.h>
 
 namespace backup_tool {
 namespace fs = std::filesystem;
 
-typedef std::vector<std::pair<bool, std::string>> SQLRecord;
+typedef std::vector<baikaldb::ExprValue> SQLRecord;
 
 DEFINE_uint32(load_concurrency, 1, "load concurrency for each table");
 DEFINE_uint32(receive_queue_num, 1, "receive queue num for each table");
@@ -66,7 +66,7 @@ public:
 
         int all = 0;
         for (;;) {
-            std::vector<std::vector<std::pair<bool, std::string>>> rows;
+            std::vector<std::vector<baikaldb::ExprValue>> rows;
             size_t row_cnt = parser.fetch_records(_batch_size, rows);
 
             // 将 rows 转成 SQLRecord 批次（请按你的字段/表结构实现）
