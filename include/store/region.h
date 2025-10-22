@@ -908,9 +908,11 @@ public:
     }
     void adjust_split_slow_down_cost(int64_t now_cost, int64_t pre_cost) {
         if (now_cost > pre_cost) {
-            _split_param.split_slow_down_cost *= 2;
-        } else {
-            _split_param.split_slow_down_cost += 100 * 1000;
+            if (_split_param.split_slow_down_cost < 50 * 1000) {
+                _split_param.split_slow_down_cost += 50 * 1000;
+            } else {
+                _split_param.split_slow_down_cost *= 2;
+            }
         }
         _split_param.split_slow_down_cost = std::min(
             _split_param.split_slow_down_cost, (int64_t)5 * 1000 * 1000);

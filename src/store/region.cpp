@@ -76,6 +76,7 @@ DEFINE_int64(compact_delete_lines, 200000, "compact when _num_delete_lines > com
 DEFINE_int64(throttle_throughput_bytes, 50 * 1024 * 1024LL, "throttle throughput bytes");
 DEFINE_int64(tail_split_wait_threshold, 600 * 1000 * 1000LL, "tail split wait threshold(10min)");
 DEFINE_int64(split_send_first_log_entry_threshold, 3600 * 1000 * 1000LL, "split send log entry threshold(1h)");
+BRPC_VALIDATE_GFLAG(split_send_first_log_entry_threshold, brpc::PassValidate);
 DEFINE_int64(split_send_log_batch_size, 20, "split send log batch size");
 DEFINE_int64(no_write_log_entry_threshold, 1000, "max left logEntry to be exec before no write");
 DEFINE_int64(check_peer_notice_delay_s, 1, "check peer delay notice second");
@@ -965,7 +966,7 @@ void Region::exec_in_txn_query(google::protobuf::RpcController* controller,
         }
         break;
         case pb::OP_SELECT_FOR_UPDATE: {
-            if (_split_param.split_slow_down) {
+            if (_split_param.split_slow_down && _split_param.split_slow_down_cost > 0) {
                 DB_WARNING("region is spliting, slow down time:%ld, region_id: %ld, txn_id: %lu:%d log_id:%lu remote_side: %s",
                             _split_param.split_slow_down_cost, _region_id, txn_id, seq_id, log_id, remote_side);
                 bthread_usleep(_split_param.split_slow_down_cost);
@@ -1060,21 +1061,24 @@ void Region::exec_in_txn_query(google::protobuf::RpcController* controller,
         case pb::OP_PREPARE:
         case pb::OP_ROLLBACK:
         case pb::OP_COMMIT: {
-            if (_split_param.split_slow_down) {
+            if (_split_param.split_slow_down && _split_param.split_slow_down_cost > 0 && op_type != pb::OP_ROLLBACK && op_type != pb::OP_COMMIT) {
                 DB_WARNING("region is spliting, slow down time:%ld, region_id: %ld, txn_id: %lu:%d log_id:%lu remote_side: %s",
                             _split_param.split_slow_down_cost, _region_id, txn_id, seq_id, log_id, remote_side);
                 bthread_usleep(_split_param.split_slow_down_cost);
             }
             //TODO
-            int64_t disable_write_wait = get_split_wait_time();
-            ret = _disable_write_cond.timed_wait(disable_write_wait);
-            if (ret != 0) {
-                apply_success = false;
-                response->set_errcode(pb::DISABLE_WRITE_TIMEOUT);
-                response->set_errmsg("_disable_write_cond wait timeout");
-                DB_FATAL("_disable_write_cond wait timeout, ret:%d, region_id: %ld txn_id: %lu:%d log_id:%lu remote_side: %s",
-                         ret, _region_id, txn_id, seq_id, log_id, remote_side);
-                return;
+            // 已经执行过的事务不能禁写，可能导致加锁未释放，后续等待加锁的sql执行失败
+            if (last_seq == 0) {
+                int64_t disable_write_wait = get_split_wait_time();
+                ret = _disable_write_cond.timed_wait(disable_write_wait);
+                if (ret != 0) {
+                    apply_success = false;
+                    response->set_errcode(pb::DISABLE_WRITE_TIMEOUT);
+                    response->set_errmsg("_disable_write_cond wait timeout");
+                    DB_FATAL("_disable_write_cond wait timeout, ret:%d, region_id: %ld txn_id: %lu:%d log_id:%lu remote_side: %s",
+                             ret, _region_id, txn_id, seq_id, log_id, remote_side);
+                    return;
+                }
             }
             _real_writing_cond.increase();
             ScopeGuard auto_decrease([this]() {
@@ -1212,7 +1216,7 @@ void Region::exec_out_txn_query(google::protobuf::RpcController* controller,
         case pb::OP_DELETE:
         case pb::OP_UPDATE:
         case pb::OP_TRUNCATE_TABLE: {
-            if (_split_param.split_slow_down) {
+            if (_split_param.split_slow_down && _split_param.split_slow_down_cost > 0) {
                 DB_WARNING("region is spliting, slow down time:%ld, region_id: %ld, remote_side: %s",
                             _split_param.split_slow_down_cost, _region_id, remote_side);
                 bthread_usleep(_split_param.split_slow_down_cost);
@@ -1746,7 +1750,7 @@ void Region::query(google::protobuf::RpcController* controller,
         case pb::OP_UPDATE_PRIMARY_TIMESTAMP:
         case pb::OP_NONE: {
             if (request->op_type() == pb::OP_NONE) {
-                if (_split_param.split_slow_down) {
+                if (_split_param.split_slow_down && _split_param.split_slow_down_cost > 0) {
                     DB_WARNING("region is spliting, slow down time:%ld, region_id: %ld, remote_side: %s",
                                 _split_param.split_slow_down_cost, _region_id, remote_side);
                     bthread_usleep(_split_param.split_slow_down_cost);
@@ -5524,13 +5528,14 @@ void Region::start_process_split(const pb::RegionSplitResponse& split_response,
     DB_WARNING("init region success when region split, region_id: %ld, time_cost:%ld",
                 _region_id, new_region_cost.get_time());
     _split_param.new_region_cost = new_region_cost.get_time(); 
-    int64_t average_cost = _dml_time_cost.latency();
-    if (average_cost == 0) {
-        average_cost = 50000;
-    }
-
-    _split_param.split_slow_down_cost = std::min(
-            std::max(average_cost, (int64_t)FLAGS_min_split_slowdown_cost), (int64_t)FLAGS_max_split_slowdown_cost);
+    // 初始状态不进行slow down = 0
+    // int64_t average_cost = _dml_time_cost.latency();
+    // if (average_cost == 0) {
+    //     average_cost = 50000
+    // }
+    //
+    // _split_param.split_slow_down_cost = std::min(
+    //        std::max(average_cost, (int64_t)FLAGS_min_split_slowdown_cost), (int64_t)FLAGS_max_split_slowdown_cost);
 
     if (!is_leader()) {
         if (_split_param.multi_new_regions.empty()) {
@@ -6322,6 +6327,9 @@ void Region::send_log_entry_to_new_region_for_split() {
     int64_t queued_logs_pre_min = 0; // 上一分钟，新region queued日志数
     int64_t queued_logs_now = 0;     // 当前，新region queued日志数
     int64_t real_writing_cnt_threshold = 0;
+    TimeCost first_wait_real_write_cond;
+    bool wait_real_writing_cond = false;
+    bool should_wait_real_writing_cond = false;
     do {
         TimeCost time_cost_one_pass;
         int64_t end_index = 0;
@@ -6454,13 +6462,32 @@ void Region::send_log_entry_to_new_region_for_split() {
         }
         // 计算老region的real writing阈值
         if (average_cost > 0) {
-            real_writing_cnt_threshold =
+             real_writing_cnt_threshold =
                 std::max(FLAGS_disable_write_wait_timeout_us, _split_param.split_slow_down_cost) / 2 / average_cost;
         }
+        if (qps > 0) {
+            int64_t real_writing_cnt_threshold_by_qps = 
+                std::max(FLAGS_disable_write_wait_timeout_us, _split_param.split_slow_down_cost) / 1000 * 1000L / 2 * qps;
+            if (real_writing_cnt_threshold_by_qps > real_writing_cnt_threshold) {
+                real_writing_cnt_threshold = real_writing_cnt_threshold_by_qps;
+            }
+        }
         adjust_value = send_first_log_entry_time.get_time() / (600 * 1000 * 1000) + 1;
+        should_wait_real_writing_cond = _real_writing_cond.count() > real_writing_cnt_threshold * adjust_value;
+        if (should_wait_real_writing_cond) {
+            if (!wait_real_writing_cond) {
+                wait_real_writing_cond = true;
+                first_wait_real_write_cond.reset();
+            } else {
+                if (first_wait_real_write_cond.get_time() > 120000000) {
+                    should_wait_real_writing_cond = false;
+                }
+            }
+        }
     } while ((left_log_entry > left_log_entry_threshold * adjust_value
-                || left_log_entry > FLAGS_no_write_log_entry_threshold * adjust_value 
-                || _real_writing_cond.count() > real_writing_cnt_threshold * adjust_value)
+                || left_log_entry > FLAGS_no_write_log_entry_threshold * adjust_value
+                || should_wait_real_writing_cond) 
+                // || _real_writing_cond.count() > real_writing_cnt_threshold * adjust_value
                 && send_first_log_entry_time.get_time() < FLAGS_split_send_first_log_entry_threshold);
     DB_WARNING("send log entry before not allow success when split, "
                 "region_id: %ld, new_region_id:%ld, instance:%s, time_cost:%ld, "
@@ -6476,6 +6503,7 @@ void Region::send_log_entry_to_new_region_for_split() {
     _disable_write_cond.increase();
     DB_WARNING("start not allow write, region_id: %ld, new_region_id: %ld, _real_writing_cond: %d",
                _region_id, _split_param.new_region_id, _real_writing_cond.count());
+    _split_param.split_slow_down_cost = 0;
     _split_param.send_first_log_entry_cost = send_first_log_entry_time.get_time();
     int64_t disable_write_wait = get_split_wait_time();
     if (_split_param.send_first_log_entry_cost >= FLAGS_split_send_first_log_entry_threshold) {
