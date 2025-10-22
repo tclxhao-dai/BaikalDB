@@ -41,6 +41,7 @@ DEFINE_double(rocks_high_pri_pool_ratio, 0.5, "rocksdb cache high_pri_pool_ratio
 DEFINE_int32(rocks_max_open_files, 1024, "rocksdb max_open_files, default: 1024");
 DEFINE_int32(rocks_max_subcompactions, 4, "rocks_max_subcompactions");
 DEFINE_int32(rocks_max_background_compactions, 20, "max_background_compactions");
+DEFINE_int32(rocks_max_background_flushes, 2, "max_background_flushes");
 DEFINE_bool(rocks_optimize_filters_for_hits, false, "rocks_optimize_filters_for_hits");
 DEFINE_int32(slowdown_write_sst_cnt, 10, "level0_slowdown_writes_trigger");
 DEFINE_int32(stop_write_sst_cnt, 40, "level0_stop_writes_trigger");
@@ -157,8 +158,8 @@ int32_t RocksWrapper::init(const std::string& path) {
     }
     db_options.statistics = rocksdb::CreateDBStatistics();
     db_options.max_subcompactions = FLAGS_rocks_max_subcompactions;
-    db_options.max_background_flushes = 2;
-    db_options.env->SetBackgroundThreads(2, rocksdb::Env::HIGH);
+    db_options.max_background_flushes = FLAGS_rocks_max_background_flushes;
+    db_options.env->SetBackgroundThreads(FLAGS_rocks_max_background_flushes, rocksdb::Env::HIGH);
     db_options.listeners.emplace_back(my_listener);
     rocksdb::TransactionDBOptions txn_db_options;
     DB_NOTICE("FLAGS_rocks_transaction_lock_timeout_ms:%d FLAGS_rocks_default_lock_timeout_ms:%d", FLAGS_rocks_transaction_lock_timeout_ms, FLAGS_rocks_default_lock_timeout_ms);
