@@ -65,6 +65,7 @@ public:
             _pool(pool) {
         _write_opt.disableWAL = FLAGS_disable_wal;
         bthread_mutex_init(&_txn_mutex, nullptr);
+        bthread_mutex_init(&_max_seq_mutex, nullptr);
         bthread_mutex_init(&_cache_map_mutex, nullptr);
     }
 
@@ -78,6 +79,7 @@ public:
         delete _txn;
         _txn = nullptr;
         bthread_mutex_destroy(&_txn_mutex);
+        bthread_mutex_destroy(&_max_seq_mutex);
         bthread_mutex_destroy(&_cache_map_mutex);
     }
 
@@ -338,7 +340,7 @@ public:
     }
 
     void update_max_seq_id(int seq_id) {
-        BAIDU_SCOPED_LOCK(_txn_mutex);
+        BAIDU_SCOPED_LOCK(_max_seq_mutex);
         if (max_seq_id < seq_id) {
             max_seq_id = seq_id;
             last_active_time = butil::gettimeofday_us();
@@ -655,6 +657,7 @@ private:
     std::set<int32_t>               _pri_field_ids; // for cstore
 
     bthread_mutex_t                 _txn_mutex;
+    bthread_mutex_t                 _max_seq_mutex;
     bool                            _use_ttl = false;
     bool                            _is_separate = false;
     int64_t                         _read_ttl_timestamp_us = 0; //ttl读取时间
