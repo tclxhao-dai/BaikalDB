@@ -113,6 +113,23 @@ private:
 
 };
 
+auto ensure_dir_exist(std::string dir)-> bool {
+    if (dir.empty()) {
+        return true;
+    }
+    std::error_code ec;
+    if (!fs::exists(dir,ec)) {
+        if (!fs::create_directories(dir,ec)) {
+            std::cout << "create directory " << dir << " failed, error: " << ec.message() << std::endl;
+            return false;
+        }
+    }else if (!fs::is_directory(dir,ec)){
+        std::cout<< "path " << dir << " is not a directory" << std::endl;
+        return false;
+    }
+    return true;
+}
+
 }
 
 #endif //FILE_SYSTEM_H

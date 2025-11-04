@@ -17,6 +17,8 @@ public:
       : _host(host), _port(port), _rf(std::move(rf)) {}
   StoreClient(const std::string &addr, std::shared_ptr<RegionFile> rf)
       : _addr(addr), _rf(std::move(rf)) {}
+  auto UploadRegion
+
   auto DownloadRegion(const int64_t &log_index) const -> Status {
 
     const std::string prefix = "http://";

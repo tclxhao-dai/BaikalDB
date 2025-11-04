@@ -672,7 +672,7 @@ int StateMachine::_auth_read(SmartSocket sock) {
 
     // set current_db
     sock->current_db.clear();
-    if (capability & CLIENT_CONNECT_WITH_DB) {
+    if (capability & CLIENT_CONNECT_WITH_DB_) {
         if (0 != _wrapper->protocol_get_string(packet,
                 sock->packet_len + PACKET_HEADER_LEN, off, sock->current_db)) {
             DB_FATAL_CLIENT(sock, "current_db is wrong");

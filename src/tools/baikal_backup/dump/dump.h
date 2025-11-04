@@ -155,6 +155,7 @@ public:
     _download_from_leader = config._download_from_leader;
     _balance_by_machine = config._dump_balance_by_machine;
     _concurrency = config._concurrency;
+    _filter_tables = config._filter_tables;
   }
   auto update_new_region() -> bool {
     //fetch region info from meta,if have new region,update _table_region_info_map
@@ -187,6 +188,9 @@ public:
     for (const auto& table : _tables) {
       _table_set.insert(table);
     }
+    for (const auto& table : _filter_tables) {
+      _filter_table_set.insert(table);
+    }
     if (_meta_interact->init_internal(_meta_group) != 0) {
       DB_FATAL("init meta interact fail. meta_group: %s", _meta_group.c_str());
       exit(-1);
@@ -197,18 +201,33 @@ public:
     Status status= retry.WithRetry([this, &schema_response]() -> Status {
       return this->fetch_schema_info(schema_response);
     });
+    std::vector<int64_t> table_ids;
+    for (const auto& schema_info : schema_response.schema_infos()) {
+      table_ids.emplace_back(schema_info.table_id());
+    }
     if (!status.ok()) {
       DB_FATAL("fetch schema info fail. err: %s", status.message().c_str());
       exit(-1);
     }
     //fetch region list
+    baikaldb::pb::QueryResponse sum_regions;
     baikaldb::pb::QueryResponse region_response;
-    status = retry.WithRetry([this,&region_response]() -> Status {
-      return this->fetch_regions(region_response);
-    });
-    if (!status.ok()) {
-      DB_FATAL("fetch region info fail. err: %s", status.message().c_str());
-      exit(-1);
+    for (size_t i =0;i< table_ids.size();i++) {
+      const int64_t table_id = table_ids[i];
+      status = retry.WithRetry([this,&region_response,&table_id]() -> Status {
+        return this->fetch_regions(table_id,region_response);
+      });
+      if (!status.ok()) {
+        DB_FATAL("fetch region info fail. err: %s", status.message().c_str());
+        exit(-1);
+      }
+      if (i==0) {
+        sum_regions = region_response;
+      }else {
+        for (baikaldb::pb::RegionInfo region_info : region_response.region_infos()) {
+          sum_regions.mutable_region_infos()->Add(std::move(region_info));
+        }
+      }
     }
     //create dump path
     if (!std::filesystem::exists(_dump_path)) {
@@ -220,7 +239,7 @@ public:
     }
     // store meta info into disk
     const auto m = MetaDumper(std::make_shared<baikaldb::pb::QueryResponse>(schema_response),
-                              std::make_shared<baikaldb::pb::QueryResponse>(region_response),
+                              std::make_shared<baikaldb::pb::QueryResponse>(sum_regions),
                               _dump_path);
     Status s = m.write();
     if (!s.ok()) {
@@ -282,7 +301,9 @@ private:
   std::string _database;
   std::string _namespace;
   std::vector<std::string> _tables;
+  std::vector<std::string> _filter_tables;
   std::unordered_set<std::string> _table_set;
+  std::unordered_set<std::string> _filter_table_set;
   std::vector<baikaldb::pb::SchemaInfo> _schema_infos;
   std::unordered_map<int64_t,std::string> _table_id_map; // key is table name, value is table id
   std::unordered_map<std::string,baikaldb::pb::SchemaInfo> _schema_info_map;
@@ -308,6 +329,9 @@ private:
       if (!_table_set.empty() && _table_set.find(schema_info.table_name()) == _table_set.end()) {
         continue;
       }
+      if (_filter_table_set.find(schema_info.table_name()) != _filter_table_set.end()) {
+        continue;
+      }
       _schema_infos .emplace_back(schema_info);
       _table_id_map[schema_info.table_id()]=schema_info.table_name();
     }
@@ -315,9 +339,10 @@ private:
   }
 
   // fetch_regions QUERY_REGION doesn't support specify namespace and database now
-  auto fetch_regions(baikaldb::pb::QueryResponse& response) -> Status {
+  auto fetch_regions(int64_t table_id,baikaldb::pb::QueryResponse& response) -> Status {
     baikaldb::pb::QueryRequest request;
     request.set_op_type(baikaldb::pb::QUERY_REGION);
+    request.set_table_id(table_id);
     //request.set_namespace_name(_namespace);
     //request.set_database(_database);
     if (baikaldb::MetaServerInteract::get_instance()->send_request("query",request,response) != 0) {

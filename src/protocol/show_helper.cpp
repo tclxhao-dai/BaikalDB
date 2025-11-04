@@ -1122,7 +1122,7 @@ void ShowHelper::_build_create_table_sql(std::ostringstream& oss, const std::str
         oss << ") ENGINE=" << "InnoDB";
         oss << " DEFAULT CHARSET=" << charset_map[info.charset];
         if (!info.comment.empty()) {
-            oss << "COMMENT='" << info.comment << "'";
+            oss << " COMMENT='" << info.comment << "'";
         }
     }
 }

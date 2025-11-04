@@ -15,6 +15,9 @@
 
 #include "parse_record.h"
 #include <load/sql_exec.h>
+#include <system_error>
+
+#include "retry.h"
 
 namespace backup_tool {
 namespace fs = std::filesystem;
@@ -31,6 +34,7 @@ DEFINE_int32(dest_port, 3306, "destination mysql port");
 DEFINE_string(dest_user, "root", "destination mysql user");
 DEFINE_string(dest_password, "", "destination mysql password");
 DEFINE_string(dest_database_name, "", "destination mysql database name");
+DEFINE_bool(load_ingest,true,"store need ingest the latest sst file after upload");
 
 
 class LoadWorker {
@@ -68,14 +72,6 @@ public:
         for (;;) {
             std::vector<std::vector<baikaldb::ExprValue>> rows;
             size_t row_cnt = parser.fetch_records(_batch_size, rows);
-
-            // 将 rows 转成 SQLRecord 批次（请按你的字段/表结构实现）
-            // std::vector<SQLRecord> batch;
-            // batch.reserve(rows.size());
-            // for (auto& row : rows) {
-            //     batch.emplace_back(build_sql_record(row)); // TODO: 实现该转换
-            // }
-
             enqueue_records(rows);
             all += static_cast<int>(row_cnt);
 
@@ -121,7 +117,6 @@ private:
         return StatusCode::kOk;
     }
 
-private:
     int64_t _table_id = 0;
     size_t _batch_size = 64;
 
@@ -298,6 +293,8 @@ private:
 class LoadManager {
 public:
     explicit LoadManager(const Config& cfg) {
+        _load_type = cfg._load_type;
+        _ingest_after_load = FLAGS_load_ingest;
         _max_region_concurrency = cfg._max_region_concurrency;
         _mysql_exec_concurrency = cfg._mysql_exec_concurrency;
         _mysql_batch_size = cfg._mysql_batch_size;
@@ -338,10 +335,13 @@ public:
             DB_FATAL("load path isn't exist");
             exit(1);
         }
+
         for (fs::directory_iterator table_it(load_path, err_table), end; table_it != end; table_it.
              increment(err_table)) {
+            if (!_table_rewrite.empty() && _table_rewrite.find(table_it->path().filename()) == _table_rewrite.end()) {
+                continue;
+            }
             std::string table_name = table_it->path().filename();
-            //if (table_name == "check_record") continue;
             if (err_table) {
                 DB_FATAL("iterate path %s err:%s", table_it->path().c_str(), err_table.message().c_str());
                 exit(1);
@@ -367,10 +367,12 @@ public:
                 DB_WARNING("push region %d into work queue", region_id);
             }
         }
+        DB_WARNING( "load manager init succ");
         return StatusCode::kOk;
     }
 
     auto run() -> Status {
+        DB_WARNING("start to init exec");
         MySQLConfig config;
         config._host = FLAGS_dest_host;
         config._port = FLAGS_dest_port;
@@ -380,6 +382,7 @@ public:
         config._timeout_sec = 5;
         SQLExec exec(config, 100, "", "");
         exec.init();
+        std::cout << "init exec succ" << std::endl;
         for (const auto& [table_id,table_info] : _table_info_map) {
             //if (table_info.short_name=="check_record") continue;
             DB_WARNING("---------");
@@ -387,6 +390,15 @@ public:
             DB_WARNING("start create table %s", table_info.name.c_str());
             exec.set_create_table_sql(_table_create_sql_map[table_id]);
             exec.set_insert_tpl(_table_insert_sql_tpl_map[table_id]);
+
+            RetryPolicy retry = RetryPolicy({});
+            Status status = retry.WithRetry([&exec]() -> Status {
+                bool create =  exec.ensure_table();
+                if (!create) {
+                    return Status(StatusCode::kInternal, "ensure table failed");
+                }
+                return StatusCode::kOk;
+            });
             bool create = exec.ensure_table();
             if (!create) {
                 DB_FATAL("ensure table %s failed", table_info.name.c_str());
@@ -410,10 +422,12 @@ private:
 
     auto load_table_info() -> Status {
         const fs::path json_path = fs::path(_load_path) / "schema.json";
-        std::cout << json_path << std::endl;
+        std::cout << json_path.string() << std::endl;
         std::ifstream ifs(json_path, std::ios::in | std::ios::binary);
         if (!ifs.is_open()) {
-            DB_WARNING("open log index file %s failed", (_load_path+"/schema.json").c_str());
+            const int e = errno;
+            std::cout << "open schema file failed, err:" << std::strerror(e) << std::endl;
+            DB_WARNING("open schema file %s failed,err:%s", (_load_path+"/schema.json").c_str(),std::strerror(e));
             return StatusCode::kFileError;
         }
         std::ostringstream oss;
@@ -442,6 +456,7 @@ private:
             ) {
                 TableBuilder tb(schema_info.table_id());
                 baikaldb::TableInfo table_info = baikaldb::TableInfo();
+                DB_WARNING("build table info for table %s", schema_info.table_name().c_str());
 
                 tb.build(schema_info, table_info, _idx_mp);
                 _table_info_map[schema_info.table_id()] = table_info;
@@ -495,6 +510,8 @@ private:
         return ret;
     }
 
+    std::string _load_type;
+    bool _ingest_after_load = true;
     uint32_t _max_region_concurrency;
     uint32_t _mysql_exec_concurrency;
     uint32_t _mysql_batch_size;

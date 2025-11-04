@@ -16,6 +16,13 @@
 backup_tool::Config config;
 
 int main(int argc, char **argv) {
+    gflags::ParseCommandLineFlags(&argc, &argv, true);
+  google::InitGoogleLogging(argv[0]);
+  bool log_ok = backup_tool::ensure_dir_exist(FLAGS_log_dir);
+  if (!log_ok) {
+      fprintf(stderr, "log dir %s create failed.", FLAGS_log_dir.c_str());
+      exit(-1);
+  }
   config = backup_tool::ParseConfig(&argc,&argv);
   backup_tool::DumpManager dump_manager(config);
   dump_manager.init();

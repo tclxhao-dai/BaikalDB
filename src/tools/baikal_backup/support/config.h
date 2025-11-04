@@ -12,6 +12,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "filter_node.h"
+
 namespace backup_tool {
 
 // ------------------------------ Flag Declarations ---------------------------
@@ -20,6 +22,7 @@ DEFINE_string(src_meta_group, "", "Comma‑separated list of source MetaServer a
 DEFINE_string(namespace_name, "", "Namespace to dump (required)");
 DEFINE_string(database, "", "Database to dump (required)");
 DEFINE_string(tables, "", "Comma‑separated list of tables to dump (empty = all tables)");
+DEFINE_string(filter_tables,"", "Comma-separated list of tables to filter out");
 DEFINE_string(dump_path, "./backup", "Directory where region‑sst & meta files are written");
 DEFINE_bool(dump_balance_by_machine,true,"dump load balance by machine, false means balance by instance");
 DEFINE_bool(dump_from_leader, true, "Download region SST from leader only (default = true)");
@@ -49,6 +52,7 @@ struct Config {
     std::string _namespace;           // "namespace" is a C++ keyword; use ns instead
     std::string _database;
     std::vector<std::string> _tables;
+    std::vector<std::string> _filter_tables;
     std::string _dump_path;
     bool _dump_balance_by_machine = true; // true = by machine, false = by instance
     int _concurrency = 1; // concurrency for each store/machine(decided by _dump_balance_by_machine)
@@ -141,6 +145,7 @@ inline Config ParseConfig(int* argc, char*** argv) {
     cfg._namespace            = FLAGS_namespace_name;
     cfg._database      = FLAGS_database;
     cfg._tables        = Split(FLAGS_tables, ',');
+    cfg._filter_tables = Split(FLAGS_filter_tables,',');
     cfg._dump_path     = FLAGS_dump_path;
     cfg._dump_balance_by_machine = FLAGS_dump_balance_by_machine;
     cfg._download_from_leader = FLAGS_dump_from_leader;

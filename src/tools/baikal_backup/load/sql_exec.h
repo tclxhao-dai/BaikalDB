@@ -13,6 +13,8 @@
 #include <cassert>
 #include <mysql.h>
 
+#include "type.h"
+
 namespace backup_tool {
 class SQLExec {
 public:
@@ -290,17 +292,14 @@ private:
         for (const auto& row : batch) {
             for (int c = 0; c < col_count_; ++c) {
                 if (row[c].is_null()) {
-                    is_null[p] = 0;
+                    is_null[p] = 1;
                 }
-                const std::string& v = row[c].second;
+                const baikaldb::ExprValue& expr = row[c];
                 MYSQL_BIND &b = binds[p];
                 memset(&b, 0, sizeof(MYSQL_BIND));
-                b.buffer_type   = MYSQL_TYPE_STRING;
-                b.buffer        = const_cast<char*>(v.data());
-                lengths[p]      = (unsigned long)v.size();
-                b.length        = &lengths[p];
-                b.is_null       = reinterpret_cast<my_bool*>(&is_null[p]);
-                // b.buffer_length 可不设，对输入参数非必须
+                b.length = &lengths[p];
+                b.is_null = reinterpret_cast<my_bool*>(&is_null[p]);
+                bind_mysql_value(expr, &b);
                 ++p;
             }
         }
