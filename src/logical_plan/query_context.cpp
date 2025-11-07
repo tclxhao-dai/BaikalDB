@@ -17,6 +17,7 @@
 
 namespace baikaldb {
 DEFINE_bool(default_2pc, false, "default enable/disable 2pc for autocommit queries");
+DECLARE_bool(use_dynamic_timeout);
 QueryContext::~QueryContext() {
     if (need_destroy_tree) {
         ExecNode::destroy_tree(root);
@@ -43,7 +44,7 @@ void QueryContext::update_ctx_stat_info(RuntimeState* state, int64_t query_total
     stat_info.read_disk_size += state->read_disk_size();
     stat_info.num_filter_rows += state->num_filter_rows();
     stat_info.region_count += state->region_count;
-    if (stmt_type == parser::NT_SELECT && stat_info.error_code == 1000 && state->sign != 0) {
+    if (FLAGS_use_dynamic_timeout && stmt_type == parser::NT_SELECT && stat_info.error_code == 1000 && state->sign != 0) {
         auto sql_info = SchemaFactory::get_instance()->get_sql_stat(state->sign);
         if (sql_info == nullptr) {
             sql_info = SchemaFactory::get_instance()->create_sql_stat(state->sign);

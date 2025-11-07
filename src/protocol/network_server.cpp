@@ -57,6 +57,7 @@ DEFINE_bool(open_to_collect_slow_query_infos, false, "open to collect slow_query
 DEFINE_int32(limit_slow_sql_size, 50, "each sign to slow query sql counts, default: 50");
 DEFINE_int32(slow_query_batch_size, 100, "slow query sql batch size, default: 100");
 DECLARE_bool(auto_update_meta_list);
+DECLARE_bool(use_dynamic_timeout);
 
 static const std::string instance_table_name = "INTERNAL.baikaldb.__baikaldb_instance";
 
@@ -547,35 +548,37 @@ void NetworkServer::print_agg_sql() {
                 std::string field_desc = "-";
                 //index_recommend(pair.first, pair2.second.table_id, pair2.first, recommend_index, field_desc);
                 int learner_read = factory->sql_force_learner_read(pair2.second.table_id, out_sign);
-                std::shared_ptr<SqlStatistics> sql_info = factory->get_sql_stat(out_sign);
                 int64_t dynamic_timeout_ms = -1;
-                if (sql_info == nullptr) {
-                    sql_info = factory->create_sql_stat(out_sign);
-                }
-                if (sql_info != nullptr) {
-                    // 24小时，把小于SQL_COUNTS_RANGE的sql重置，维持天级定时任务单并发
-                    if (need_reset_counter) {
-                        if (sql_info->counter < SqlStatistics::SQL_COUNTS_RANGE) {
-                            sql_info->counter = 0;
+                if (FLAGS_use_dynamic_timeout) {
+                    std::shared_ptr<SqlStatistics> sql_info = factory->get_sql_stat(out_sign);
+                    if (sql_info == nullptr) {
+                        sql_info = factory->create_sql_stat(out_sign);
+                    }
+                    if (sql_info != nullptr) {
+                        // 24小时，把小于SQL_COUNTS_RANGE的sql重置，维持天级定时任务单并发
+                        if (need_reset_counter) {
+                            if (sql_info->counter < SqlStatistics::SQL_COUNTS_RANGE) {
+                                sql_info->counter = 0;
+                            }
                         }
+                        int64_t last_cost_s = last_cost / 1000 / 1000;
+                        if (last_cost_s > 0) {
+                            sql_info->qps = pair2.second.count * 1.0 / last_cost_s;
+                        }
+                        if (pair2.second.count > 0) {
+                            sql_info->avg_scan_rows = pair2.second.scan_rows / pair2.second.count;
+                        }
+                        //只统计正常请求的平响
+                        if (pair2.second.count - pair2.second.err_count > 0) {
+                            sql_info->latency_us = (pair2.second.sum - pair2.second.err_sum) 
+                                / (pair2.second.count - pair2.second.err_count);
+                        }
+                        dynamic_timeout_ms = sql_info->dynamic_timeout_ms();
+                        SQL_TRACE("sign:%lu qps:%f avg_scan_rows:%ld scan_rows_9999:%ld "
+                                "latency_us:%ld latency_us_9999:%ld times:%ld dynamic_timeout_ms:%ld",
+                                out_sign, sql_info->qps, sql_info->avg_scan_rows, sql_info->scan_rows_9999, sql_info->latency_us,
+                                sql_info->latency_us_9999, sql_info->times_avg_and_9999, dynamic_timeout_ms);
                     }
-                    int64_t last_cost_s = last_cost / 1000 / 1000;
-                    if (last_cost_s > 0) {
-                        sql_info->qps = pair2.second.count * 1.0 / last_cost_s;
-                    }
-                    if (pair2.second.count > 0) {
-                        sql_info->avg_scan_rows = pair2.second.scan_rows / pair2.second.count;
-                    }
-                    //只统计正常请求的平响
-                    if (pair2.second.count - pair2.second.err_count > 0) {
-                        sql_info->latency_us = (pair2.second.sum - pair2.second.err_sum) 
-                            / (pair2.second.count - pair2.second.err_count);
-                    }
-                    dynamic_timeout_ms = sql_info->dynamic_timeout_ms();
-                    SQL_TRACE("sign:%lu qps:%f avg_scan_rows:%ld scan_rows_9999:%ld "
-                            "latency_us:%ld latency_us_9999:%ld times:%ld dynamic_timeout_ms:%ld",
-                            out_sign, sql_info->qps, sql_info->avg_scan_rows, sql_info->scan_rows_9999, sql_info->latency_us,
-                            sql_info->latency_us_9999, sql_info->times_avg_and_9999, dynamic_timeout_ms);
                 }
                 SQL_TRACE("date_hour_min=[%04d-%02d-%02d\t%02d\t%02d] sum_pv_avg_affected_scan_filter_rgcnt_err_size="
                         "[%ld\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld\t%ld] sign_hostname_index=[%lu\t%s\t%s] dynamic_timeout_ms:%ld sql_agg: %s "

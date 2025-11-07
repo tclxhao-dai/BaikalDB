@@ -36,6 +36,7 @@ class Cache {
 public:
     Cache() : _total_count(0), _hit_count(0), 
         _len_threshold(10000){}
+    Cache(int64_t len_threshold) : _len_threshold(len_threshold){}
     int init(int64_t len_threshold);
     std::string get_info();
     int check(const ItemKey& key);

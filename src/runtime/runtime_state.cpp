@@ -17,19 +17,23 @@
 #include "query_context.h"
 #include "network_socket.h"
 #include "packet_node.h"
+#include "lru_cache.h"
 namespace baikaldb {
 DEFINE_int32(per_txn_max_num_locks, 1000000, "max num locks per txn default 100w");
 DEFINE_int64(row_number_to_check_memory, 4096, "do memory limit when row number more than #, default: 4096");
 DECLARE_int64(baikaldb_alive_time_s);
 DEFINE_int32(time_length_to_delete_message, 1, "hours length to delete mem_row_descriptor of sql : default one hour");
 DEFINE_bool(limit_unappropriate_sql, false, "limit concurrency as one when select sql is unappropriate");
+DEFINE_int32(cache_memrow_descriptor_count, 1000, "cache count for mem_row_descriptor");
+DECLARE_bool(use_dynamic_timeout);
 int RuntimeState::init(const pb::StoreReq& req,
         const pb::Plan& plan, 
         const RepeatedPtrField<pb::TupleDescriptor>& tuples,
         TransactionPool* pool,
         bool store_compute_separate, bool is_binlog_region) {
     //thread_local map:线程局部变量map,保存签名,  tuple_sign => pair<TimeCost, std::shared_ptr<SmartDescriptor>>, 避免重复BuildFile
-    static thread_local MemRowDescriptorMap sql_sign_to_mem_row_descriptor;
+    // static thread_local MemRowDescriptorMap sql_sign_to_mem_row_descriptor;
+    static thread_local Cache<int64_t, SmartDescriptor> sql_sign_to_mem_row_descriptor(FLAGS_cache_memrow_descriptor_count);
     for (auto& tuple : tuples) {
         if (tuple.tuple_id() >= (int)_tuple_descs.size()) {
             _tuple_descs.resize(tuple.tuple_id() + 1);
@@ -45,18 +49,14 @@ int RuntimeState::init(const pb::StoreReq& req,
 
     //取出缓存的动态编译结果(按照签名)
     if (_tuple_descs.size() > 0 && sign != 0 && tuple_sign != 0) {
-        if (sql_sign_to_mem_row_descriptor.count(tuple_sign) == 1) {
-            _mem_row_desc = sql_sign_to_mem_row_descriptor[tuple_sign].second;
-            sql_sign_to_mem_row_descriptor[tuple_sign].first.reset();//更新tuple_sign对应的使用时间
-        } else {
+        if (0 != sql_sign_to_mem_row_descriptor.find(tuple_sign, &_mem_row_desc)) {
             _mem_row_desc = std::make_shared<MemRowDescriptor>();
             int ret = _mem_row_desc->init(_tuple_descs);
             if (ret < 0) {
                 DB_WARNING("_mem_row_desc init fail");
                 return -1;
             }
-            TimeCost start_time;
-            sql_sign_to_mem_row_descriptor[tuple_sign] = {start_time, _mem_row_desc};
+            sql_sign_to_mem_row_descriptor.add(tuple_sign, _mem_row_desc);
         }
     } else {
         _mem_row_desc = std::make_shared<MemRowDescriptor>();
@@ -66,7 +66,7 @@ int RuntimeState::init(const pb::StoreReq& req,
             return -1;
         }
     }
-    clear_mem_row_descriptor(sql_sign_to_mem_row_descriptor);//定期清理过期sql的mem_row_descriptor
+    // clear_mem_row_descriptor(sql_sign_to_mem_row_descriptor);//定期清理过期sql的mem_row_descriptor
 
     _region_id = req.region_id();
     _region_version = req.region_version();
@@ -114,7 +114,8 @@ int RuntimeState::init(const pb::StoreReq& req,
 
 int RuntimeState::init(QueryContext* ctx, DataBuffer* send_buf) {
     //thread_local map:线程局部变量map,保存签名,  tuple_sign => pair<TimeCost, std::shared_ptr<SmartDescriptor>>, 避免重复BuildFile
-    static thread_local MemRowDescriptorMap sql_sign_to_mem_row_descriptor;
+    //static thread_local MemRowDescriptorMap sql_sign_to_mem_row_descriptor;
+    static thread_local Cache<int64_t, SmartDescriptor> sql_sign_to_mem_row_descriptor(FLAGS_cache_memrow_descriptor_count);
     _num_increase_rows = 0; 
     _num_affected_rows = 0; 
     _num_returned_rows = 0; 
@@ -145,18 +146,14 @@ int RuntimeState::init(QueryContext* ctx, DataBuffer* send_buf) {
 
     //取出缓存的动态编译结果(按照签名)
     if (_tuple_descs.size() > 0 && sign != 0 && tuple_sign != 0) {
-        if (sql_sign_to_mem_row_descriptor.count(tuple_sign) == 1) {
-            _mem_row_desc = sql_sign_to_mem_row_descriptor[tuple_sign].second;
-            sql_sign_to_mem_row_descriptor[tuple_sign].first.reset();//更新tuple_sign对应的使用时间   
-        } else {
+        if (0 != sql_sign_to_mem_row_descriptor.find(tuple_sign, &_mem_row_desc)) {
             _mem_row_desc = std::make_shared<MemRowDescriptor>();
             int ret = _mem_row_desc->init(_tuple_descs);
             if (ret < 0) {
                 DB_WARNING("_mem_row_desc init fail");
                 return -1;
             }
-            TimeCost start_time;
-            sql_sign_to_mem_row_descriptor[tuple_sign] = {start_time, _mem_row_desc};
+            sql_sign_to_mem_row_descriptor.add(tuple_sign, _mem_row_desc);
         }
     } else {
         _mem_row_desc = std::make_shared<MemRowDescriptor>();
@@ -166,7 +163,7 @@ int RuntimeState::init(QueryContext* ctx, DataBuffer* send_buf) {
             return -1;
         }
     }
-    clear_mem_row_descriptor(sql_sign_to_mem_row_descriptor);//定期清理过期sql的mem_row_descriptor
+    //clear_mem_row_descriptor(sql_sign_to_mem_row_descriptor);//定期清理过期sql的mem_row_descriptor
 
     if (ctx->open_binlog) {
         _open_binlog = true;
@@ -186,18 +183,20 @@ int64_t RuntimeState::calc_single_store_concurrency(pb::OpType op_type) {
     if (!FLAGS_limit_unappropriate_sql || op_type != pb::OP_SELECT) {
         return single_store_concurrency;
     }
-    int64_t baikaldb_alive_time_us = SchemaFactory::get_instance()->get_baikaldb_alive_time_us();
-    if (baikaldb_alive_time_us < FLAGS_baikaldb_alive_time_s * 1000 * 1000LL) {
-        return single_store_concurrency;
-    }
-    if (sign == 0) {
-        return single_store_concurrency;
-    }
-    auto schema_factory = SchemaFactory::get_instance();
-    auto sql_stat_ptr = schema_factory->get_sql_stat(sign);
-    if (sql_stat_ptr == nullptr || sql_stat_ptr->counter < SqlStatistics::SQL_COUNTS_RANGE) {
-        single_store_concurrency = 1;
-        DB_WARNING("select sql is unappropriate sql, need to limit concurrency as one, sql sign is [%lu]", sign);
+    if (FLAGS_use_dynamic_timeout) {
+        int64_t baikaldb_alive_time_us = SchemaFactory::get_instance()->get_baikaldb_alive_time_us();
+        if (baikaldb_alive_time_us < FLAGS_baikaldb_alive_time_s * 1000 * 1000LL) {
+            return single_store_concurrency;
+        }
+        if (sign == 0) {
+            return single_store_concurrency;
+        }
+        auto schema_factory = SchemaFactory::get_instance();
+        auto sql_stat_ptr = schema_factory->get_sql_stat(sign);
+        if (sql_stat_ptr == nullptr || sql_stat_ptr->counter < SqlStatistics::SQL_COUNTS_RANGE) {
+            single_store_concurrency = 1;
+            DB_WARNING("select sql is unappropriate sql, need to limit concurrency as one, sql sign is [%lu]", sign);
+        }
     }
     return single_store_concurrency;
 }
