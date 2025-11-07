@@ -107,6 +107,7 @@ DECLARE_bool(open_service_write_concurrency);
 DECLARE_bool(open_new_sign_read_concurrency);
 DECLARE_bool(stop_ttl_data);
 DECLARE_string(resource_tag);
+DECLARE_int64(use_token_bucket);
 
 //const size_t  Region::REGION_MIN_KEY_SIZE = sizeof(int64_t) * 2 + sizeof(uint8_t);
 const uint8_t Region::PRIMARY_INDEX_FLAG = 0x01;                                   
@@ -1837,7 +1838,9 @@ void Region::dml_2pc(const pb::StoreReq& request,
     }
     
     int64_t index_id = 0;
-    StoreQos::get_instance()->create_bthread_local(type, sign, index_id);
+    if (FLAGS_use_token_bucket) {
+        StoreQos::get_instance()->create_bthread_local(type, sign, index_id);
+    }
     ON_SCOPE_EXIT(([this]() {
         StoreQos::get_instance()->destroy_bthread_local();
     }));
@@ -2171,7 +2174,9 @@ void Region::dml_1pc(const pb::StoreReq& request, pb::OpType op_type,
         sign = request.sql_sign();
     } 
     int64_t index_id = 0;
-    StoreQos::get_instance()->create_bthread_local(type, sign, index_id);
+    if (FLAGS_use_token_bucket) {
+        StoreQos::get_instance()->create_bthread_local(type, sign, index_id);
+    }
     ON_SCOPE_EXIT(([this]() {
         StoreQos::get_instance()->destroy_bthread_local();
     }));
@@ -2544,7 +2549,9 @@ int Region::select(const pb::StoreReq& request, pb::StoreRes& response) {
             break;
         }
     }
-    StoreQos::get_instance()->create_bthread_local(type, sign, index_id);
+    if (FLAGS_use_token_bucket || FLAGS_open_new_sign_read_concurrency || FLAGS_open_sign_concurrency) {
+        StoreQos::get_instance()->create_bthread_local(type, sign, index_id);
+    }
     if (StoreQos::get_instance()->need_reject()) {
         response.set_errcode(pb::RETRY_LATER);
         response.set_errmsg("qos reject");
@@ -2557,13 +2564,17 @@ int Region::select(const pb::StoreReq& request, pb::StoreRes& response) {
     bool is_new_sign = false;
     bool need_return_sign_concurrency_quota = false;   // 是否要归还sign并发quota
     bool need_return_global_concurrency_quota = false; // 是否要归还全局并发quota
-    auto sqlqos_ptr = StoreQos::get_instance()->get_sql_shared_ptr(sign);
-    if (sqlqos_ptr == nullptr) {
-        DB_FATAL("sign: %lu, log_id: %lu, get sign qos nullptr", sign, request.log_id());
-        response.set_errcode(pb::RETRY_LATER);
-        response.set_errmsg("get sign qos nullptr");
-        StoreQos::get_instance()->destroy_bthread_local();
-        return -1;
+    
+    std::shared_ptr<SqlQos> sqlqos_ptr;
+    if (FLAGS_use_token_bucket) {
+        auto sqlqos_ptr = StoreQos::get_instance()->get_sql_shared_ptr(sign);
+        if (sqlqos_ptr == nullptr) {
+            DB_FATAL("sign: %lu, log_id: %lu, get sign qos nullptr", sign, request.log_id());
+            response.set_errcode(pb::RETRY_LATER);
+            response.set_errmsg("get sign qos nullptr");
+            StoreQos::get_instance()->destroy_bthread_local();
+            return -1;
+        }
     }
 
     auto return_concurrency_quota = [&sqlqos_ptr, 
@@ -2572,7 +2583,7 @@ int Region::select(const pb::StoreReq& request, pb::StoreRes& response) {
         if (need_return_global_concurrency_quota) {
             Concurrency::get_instance()->global_select_concurrency.decrease_signal_with_wait_cnt();
         }
-        if (need_return_sign_concurrency_quota) {
+        if (need_return_sign_concurrency_quota && sqlqos_ptr != nullptr) {
             sqlqos_ptr->decrease_signal_with_wait_cnt();
         }
     };
@@ -2580,7 +2591,7 @@ int Region::select(const pb::StoreReq& request, pb::StoreRes& response) {
     if (FLAGS_open_new_sign_read_concurrency && (StoreQos::get_instance()->is_new_sign(sqlqos_ptr))) {
         is_new_sign = true;
         Concurrency::get_instance()->new_sign_read_concurrency.increase_wait();
-    } else if (sign != 0 && FLAGS_open_sign_concurrency) {
+    } else if (sign != 0 && FLAGS_open_sign_concurrency && sqlqos_ptr != nullptr) {
         // 并发控制
         int sign_concurrency_ret = 0;
         int global_concurrency_ret = 0;
