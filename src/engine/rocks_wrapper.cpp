@@ -83,6 +83,7 @@ DEFINE_bool(raftlog_enable_blob_files, false, "set it to true to enable key-valu
 DEFINE_int32(min_blob_size, 1 * 1024,
              "values at or above this threshold will be written to blob files during flush or compaction");
 DEFINE_int32(rocks_data_ttl_days, 30, "data cf ttl default 30 days: rocksdb compaction ");
+DEFINE_int32(rocks_raftlog_ttl_hours, 0, "raftlog cf ttl default 2 hours: rocksdb compaction ");
 
 const std::string RocksWrapper::RAFT_LOG_CF = "raft_log";
 const std::string RocksWrapper::BIN_LOG_CF  = "bin_log_new";
@@ -209,6 +210,9 @@ int32_t RocksWrapper::init(const std::string& path) {
         _log_cf_option.blob_garbage_collection_force_threshold  = 0.8;
     }
 
+    if (FLAGS_rocks_raftlog_ttl_hours > 0) {
+        _log_cf_option.ttl = FLAGS_rocks_raftlog_ttl_hours * 60 * 60;
+    }
 
     _binlog_cf_option.prefix_extractor.reset(
             rocksdb::NewFixedPrefixTransform(sizeof(int64_t)));
