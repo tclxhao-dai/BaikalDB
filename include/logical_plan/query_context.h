@@ -70,6 +70,13 @@ struct QueryStat {
     int64_t     num_scan_rows     = 0;
     int64_t     read_disk_size = 0;
     int64_t     num_filter_rows   = 0;
+    int64_t     rocks_get_count = 0;
+    int64_t     rocks_multiget_count = 0;
+    int64_t     rocks_seek_count = 0;
+    int64_t     rocks_scan_count = 0;
+    int64_t     get_primary_count = 0;
+    int64_t     lock_cost = 0;
+    int64_t     wait_cost = 0;
     int64_t     txn_alive_time    = 0;
     uint64_t    log_id = 0;
     uint64_t    old_txn_id = 0;
@@ -111,17 +118,24 @@ struct QueryStat {
         trace_id.clear();
         sign = 0;
 
-        error_code          = ER_ERROR_FIRST;
+        error_code            = ER_ERROR_FIRST;
         error_msg.str("");
-        num_affected_rows   = 0;
-        num_returned_rows   = 0;
-        num_scan_rows       = 0;
-        read_disk_size      = 0;
-        num_filter_rows     = 0;
-        log_id              = butil::fast_rand();
-        old_txn_id          = 0;
-        old_seq_id          = 0;
-        region_count        = 0;
+        num_affected_rows     = 0;
+        num_returned_rows     = 0;
+        num_scan_rows         = 0;
+        read_disk_size        = 0;
+        num_filter_rows       = 0;
+        rocks_get_count       = 0;
+        get_primary_count     = 0;
+        lock_cost             = 0;
+        wait_cost             = 0;
+        rocks_multiget_count  = 0;
+        rocks_seek_count      = 0;
+        rocks_scan_count      = 0;
+        log_id                = butil::fast_rand();
+        old_txn_id            = 0;
+        old_seq_id            = 0;
+        region_count          = 0;
     }
 };
 

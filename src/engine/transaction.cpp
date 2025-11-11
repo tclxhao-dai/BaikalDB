@@ -508,7 +508,6 @@ int Transaction::get_for_update(const std::string& key, std::string* value) {
 }
 
 rocksdb::Status Transaction::put_kv_without_lock(const std::string& key, const std::string& value, int64_t ttl_timestamp_us) {
-    TimeCost cost;
     // support ttl
     rocksdb::Slice key_slice(key);
     rocksdb::Slice value_slices[2];
@@ -646,7 +645,6 @@ int Transaction::get_update_primary(
 
     rocksdb::PinnableSlice pin_slice;
     rocksdb::Status res;
-    TimeCost cost;
     if (mode == GET_ONLY) {
         //TimeCost cost;
         rocksdb::ReadOptions read_opt;
@@ -662,7 +660,6 @@ int Transaction::get_update_primary(
         return -1;
     }
 
-    lock_cost += cost.get_time();
     if (res.ok()) {
         read_disk_size = _key.size() + pin_slice.size();
         DB_DEBUG("lock ok and key exist");
@@ -737,7 +734,6 @@ int Transaction::multiget_primary(
     std::vector<rocksdb::PinnableSlice> values(num_keys);
     std::vector<rocksdb::Status> statuses(num_keys);
     read_disk_size = 0;
-    TimeCost cost;
     rocksdb::ReadOptions read_opt;
     read_opt.fill_cache = true;
     read_opt.snapshot = _snapshot;
@@ -996,7 +992,6 @@ int Transaction::multiget_secondary(
 
     std::vector<rocksdb::PinnableSlice> values(num_keys);
     std::vector<rocksdb::Status> statuses(num_keys);
-    TimeCost cost;
     rocksdb::ReadOptions read_opt;
     read_opt.fill_cache = true;
     read_opt.snapshot = _snapshot;
@@ -1087,7 +1082,6 @@ int Transaction::get_update_secondary(
 
     rocksdb::PinnableSlice pin_slice;
     rocksdb::Status res;
-    TimeCost cost;
     if (mode == GET_ONLY) {
         rocksdb::ReadOptions read_opt;
         read_opt.snapshot = _snapshot;

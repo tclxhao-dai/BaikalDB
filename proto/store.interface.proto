@@ -119,9 +119,20 @@ message ExtraReq {
     optional int64 sign_latency = 2;
 };
 
+message StoreSqlStatics {
+    optional int64 rocks_get_count = 1;
+    optional int64 rocks_seek_count = 2;
+    optional int64 rocks_scan_count = 3;
+    optional int64 rocks_multiget_count = 4;
+    optional int64 get_primary_count = 5;
+    optional int64 lock_cost = 6;
+    optional int64 wait_cost = 7;
+}
+
 message ExtraRes {
     repeated RegionIndexs infos = 1; 
     optional string last_value  = 2;
+    optional StoreSqlStatics sql_statics = 10;
 };
 
 message StoreReq {

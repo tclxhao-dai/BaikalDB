@@ -101,6 +101,13 @@ int UnionNode::open(RuntimeState* state) {
         state->set_num_scan_rows(state->num_scan_rows() + runtime_state->num_scan_rows());
         state->set_num_filter_rows(state->num_filter_rows() + runtime_state->num_filter_rows());
         state->region_count += runtime_state->region_count;
+        state->set_rocks_get_count(state->rocks_get_count() + runtime_state->rocks_get_count());
+        state->set_rocks_multiget_count(state->rocks_multiget_count() + runtime_state->rocks_multiget_count());
+        state->set_rocks_scan_count(state->rocks_seek_count() + runtime_state->rocks_scan_count());
+        state->set_rocks_seek_count(state->rocks_scan_count() + runtime_state->rocks_seek_count());
+        state->set_get_primary_count(state->get_primary_count() + runtime_state->get_primary_count());
+        state->set_lock_cost(state->get_lock_cost() + runtime_state->get_lock_cost());
+        state->set_wait_cost(state->get_wait_cost() + runtime_state->get_wait_cost());
     }
     return 0;
 }

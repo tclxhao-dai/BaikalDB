@@ -2061,8 +2061,11 @@ void Region::dml_2pc(const pb::StoreReq& request,
             }
         }
     }
+    int64_t lock_cost = 0;
     if (txn != nullptr) {
         txn->err_code = pb::SUCCESS;
+        lock_cost = txn->get_lock_cost();
+        txn->reset_lock_cost();
     }
     response.set_affected_rows(affected_rows);
     if (state.last_insert_id != INT64_MIN) {
@@ -2072,7 +2075,14 @@ void Region::dml_2pc(const pb::StoreReq& request,
         response.mutable_extra_res()->set_last_value((state.last_value));
     }
     response.set_scan_rows(state.num_scan_rows());
+    response.set_filter_rows(state.num_filter_rows());
     response.set_read_disk_size(state.read_disk_size());
+    response.mutable_extra_res()->mutable_sql_statics()->set_rocks_get_count(state.rocks_get_count());
+    response.mutable_extra_res()->mutable_sql_statics()->set_rocks_seek_count(state.rocks_seek_count());
+    response.mutable_extra_res()->mutable_sql_statics()->set_rocks_scan_count(state.rocks_scan_count());
+    response.mutable_extra_res()->mutable_sql_statics()->set_rocks_multiget_count(state.rocks_multiget_count());
+    response.mutable_extra_res()->mutable_sql_statics()->set_get_primary_count(state.get_primary_count());
+    response.mutable_extra_res()->mutable_sql_statics()->set_lock_cost(lock_cost);
     response.set_errcode(pb::SUCCESS);
 
     txn = _txn_pool.get_txn(txn_id);
@@ -2418,10 +2428,18 @@ void Region::dml_1pc(const pb::StoreReq& request, pb::OpType op_type,
         ((DMLClosure*)done)->txn_num_increase_rows = txn_num_increase_rows;
     }
     if (commit_succ) {
-        response.set_affected_rows(ret);
         response.set_scan_rows(state.num_scan_rows());
+        response.set_affected_rows(ret);
         response.set_read_disk_size(state.read_disk_size());
         response.set_filter_rows(state.num_filter_rows());
+        response.mutable_extra_res()->mutable_sql_statics()->set_rocks_get_count(state.rocks_get_count());
+        response.mutable_extra_res()->mutable_sql_statics()->set_rocks_seek_count(state.rocks_seek_count());
+        response.mutable_extra_res()->mutable_sql_statics()->set_rocks_scan_count(state.rocks_scan_count());
+        response.mutable_extra_res()->mutable_sql_statics()->set_rocks_multiget_count(state.rocks_multiget_count());
+        response.mutable_extra_res()->mutable_sql_statics()->set_get_primary_count(state.get_primary_count());
+        response.mutable_extra_res()->mutable_sql_statics()->set_lock_cost(txn->get_lock_cost());
+        response.mutable_extra_res()->mutable_sql_statics()->set_wait_cost(wait_cost);
+        txn->reset_lock_cost();
         response.set_errcode(pb::SUCCESS);
         if (state.last_insert_id != INT64_MIN) {
             response.set_last_insert_id(state.last_insert_id);
@@ -2658,6 +2676,7 @@ int Region::select(const pb::StoreReq& request, pb::StoreRes& response) {
     } else {
         ret = select(request, request.plan(), request.tuples(), response);
     }
+    response.mutable_extra_res()->mutable_sql_statics()->set_wait_cost(wait_cost);
     return_concurrency_quota();
     StoreQos::get_instance()->destroy_bthread_local();
     return ret;
@@ -2853,10 +2872,22 @@ int Region::select(const pb::StoreReq& request,
     //    txn->commit(); // no write & lock, no failure
     //    auto_rollback.release();
     //}
-    response.set_affected_rows(rows);
+    int64_t lock_cost = 0;
+    if (txn != nullptr) {
+        lock_cost = txn->get_lock_cost();
+        txn->reset_lock_cost();
+    }
     response.set_scan_rows(state.num_scan_rows());
+    response.set_affected_rows(rows);
     response.set_read_disk_size(state.read_disk_size());
     response.set_filter_rows(state.num_filter_rows());
+    response.mutable_extra_res()->mutable_sql_statics()->set_rocks_get_count(state.rocks_get_count());
+    response.mutable_extra_res()->mutable_sql_statics()->set_rocks_seek_count(state.rocks_seek_count());
+    response.mutable_extra_res()->mutable_sql_statics()->set_rocks_scan_count(state.rocks_scan_count());
+    response.mutable_extra_res()->mutable_sql_statics()->set_rocks_multiget_count(state.rocks_multiget_count());
+    response.mutable_extra_res()->mutable_sql_statics()->set_get_primary_count(state.get_primary_count());
+    response.mutable_extra_res()->mutable_sql_statics()->set_lock_cost(lock_cost);
+    response.set_errcode(pb::SUCCESS);
     if (!is_new_txn && txn != nullptr && request.op_type() == pb::OP_SELECT_FOR_UPDATE) {
         auto seq_id = txn_info.seq_id();
         pb::CachePlan plan_item;
@@ -3259,6 +3290,24 @@ void Region::do_apply(int64_t term, int64_t index, const pb::StoreReq& request, 
                 }
                 if (res.has_filter_rows()) {
                     ((DMLClosure*)done)->response->set_filter_rows(res.filter_rows());
+                }
+                if (res.extra_res().sql_statics().has_rocks_scan_count()) {
+                    ((DMLClosure*)done)->response->mutable_extra_res()->mutable_sql_statics()->set_rocks_scan_count(res.extra_res().sql_statics().rocks_scan_count());
+                }
+                if (res.extra_res().sql_statics().has_rocks_seek_count()) {
+                    ((DMLClosure*)done)->response->mutable_extra_res()->mutable_sql_statics()->set_rocks_seek_count(res.extra_res().sql_statics().rocks_seek_count());
+                }
+                if (res.extra_res().sql_statics().has_rocks_get_count()) {
+                    ((DMLClosure*)done)->response->mutable_extra_res()->mutable_sql_statics()->set_rocks_get_count(res.extra_res().sql_statics().rocks_get_count());
+                }
+                if (res.extra_res().sql_statics().has_rocks_multiget_count()) {
+                    ((DMLClosure*)done)->response->mutable_extra_res()->mutable_sql_statics()->set_rocks_multiget_count(res.extra_res().sql_statics().rocks_multiget_count());
+                }
+                if (res.extra_res().sql_statics().has_get_primary_count()) {
+                    ((DMLClosure*)done)->response->mutable_extra_res()->mutable_sql_statics()->set_get_primary_count(res.extra_res().sql_statics().get_primary_count());
+                }
+                if (res.extra_res().sql_statics().has_lock_cost()) {
+                     ((DMLClosure*)done)->response->mutable_extra_res()->mutable_sql_statics()->set_lock_cost(res.extra_res().sql_statics().lock_cost());
                 }
                 if (res.has_last_insert_id()) {
                     ((DMLClosure*)done)->response->set_last_insert_id(res.last_insert_id());

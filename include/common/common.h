@@ -985,11 +985,16 @@ struct BvarMap {
                 int64_t affected_rows, int64_t scan_rows, int64_t read_disk_size,
                 int64_t filter_rows, int64_t region_count,
                 const std::map<int32_t, int>& field_range_type_,
-                const uint64_t sign_, const std::set<uint64_t>& subquery_signs_) 
+                const uint64_t sign_, const std::set<uint64_t>& subquery_signs_,
+                const int64_t rocks_get_count, const int64_t rocks_multiget_count,
+                const int64_t rocks_seek_count, const int64_t rocks_scan_count, 
+                const int64_t get_primary_count, const int64_t lock_cost, const int64_t wait_cost) 
             : table_id(table_id), sum(sum), err_sum(err_sum), count(count), err_count(err_count),
             affected_rows(affected_rows), scan_rows(scan_rows), 
             read_disk_size(read_disk_size), filter_rows(filter_rows),
-            region_count(region_count) {
+            region_count(region_count), rocks_get_count(rocks_get_count), rocks_multiget_count(rocks_multiget_count), 
+            rocks_seek_count(rocks_seek_count), rocks_scan_count(rocks_scan_count), get_primary_count(get_primary_count),
+            lock_cost(lock_cost), wait_cost(wait_cost) {
                 field_range_type = field_range_type_;
                 parent_sign = sign_;
                 if (subquery_signs_.size() > 0) {
@@ -1022,6 +1027,13 @@ struct BvarMap {
             read_disk_size += other.read_disk_size;
             filter_rows += other.filter_rows;
             region_count += other.region_count;
+            rocks_scan_count += other.rocks_scan_count;
+            rocks_get_count += other.rocks_get_count;
+            get_primary_count += other.get_primary_count;
+            lock_cost += other.lock_cost;
+            wait_cost += other.wait_cost;
+            rocks_seek_count += other.rocks_seek_count;
+            rocks_multiget_count += other.rocks_multiget_count;
             return *this;
         }
         SumCount& operator-=(const SumCount& other) {
@@ -1034,6 +1046,13 @@ struct BvarMap {
             read_disk_size -= other.read_disk_size;
             filter_rows -= other.filter_rows;
             region_count -= other.region_count;
+            rocks_scan_count -= other.rocks_scan_count;
+            rocks_get_count -= other.rocks_get_count;
+            get_primary_count -= other.get_primary_count;
+            lock_cost -= other.lock_cost;
+            wait_cost -= other.wait_cost;
+            rocks_seek_count -= other.rocks_seek_count;
+            rocks_multiget_count -= other.rocks_multiget_count;
             return *this;
         }
         int64_t table_id = 0;
@@ -1046,6 +1065,13 @@ struct BvarMap {
         int64_t read_disk_size = 0;
         int64_t filter_rows = 0;
         int64_t region_count = 0;
+        int64_t rocks_scan_count = 0;
+        int64_t rocks_get_count = 0;
+        int64_t get_primary_count = 0;
+        int64_t lock_cost = 0;
+        int64_t wait_cost = 0;
+        int64_t rocks_seek_count = 0;
+        int64_t rocks_multiget_count = 0;
         // 用于索引推荐
         std::map<int32_t, int> field_range_type;
         uint64_t parent_sign;
@@ -1057,9 +1083,12 @@ public:
         int64_t affected_rows, int64_t scan_rows, int64_t read_disk_size, 
         int64_t filter_rows, int64_t region_count,
         const std::map<int32_t, int>& field_range_type_, int64_t err_count, 
-        uint64_t parent_sign, std::set<uint64_t>& subquery_signs) {
+        uint64_t parent_sign, std::set<uint64_t>& subquery_signs, int64_t rocks_get_count,
+        int64_t rocks_multiget_count, int64_t rocks_seek_count, int64_t rocks_scan_count, 
+        int64_t get_primary_count, int64_t lock_cost, int64_t wait_cost) {
         internal_map[key][index_id] = SumCount(table_id, cost, err_cost, 1, err_count, affected_rows,
-            scan_rows, read_disk_size, filter_rows, region_count, field_range_type_, parent_sign, subquery_signs);
+            scan_rows, read_disk_size, filter_rows, region_count, field_range_type_, parent_sign, subquery_signs, 
+            rocks_get_count, rocks_multiget_count, rocks_seek_count, rocks_scan_count, get_primary_count, lock_cost, wait_cost);
     }
 
     BvarMap& operator+=(const BvarMap& other) {

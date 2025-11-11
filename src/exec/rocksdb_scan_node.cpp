@@ -691,6 +691,8 @@ int RocksdbScanNode::get_next_by_table_get(RuntimeState* state, RowBatch* batch,
                 continue;
             }
             _read_disk_size += txn->read_disk_size;
+            state->inc_rocks_get_count(1);
+            state->inc_get_primary_count(1);
             std::unique_ptr<MemRow> row = _mem_row_desc->fetch_mem_row();
             for (auto slot : _tuple_desc->slots()) {
                 auto field = record->get_field_by_tag(slot.field_id());
@@ -707,9 +709,11 @@ int RocksdbScanNode::get_next_by_table_get(RuntimeState* state, RowBatch* batch,
         } else {
             auto key_pairs = _scan_range_keys.get_next_batch();
             _scan_rows += key_pairs.size();
+            state->inc_rocks_multiget_count(key_pairs.size());
             int ret = txn->multiget_primary(_region_id, *_pri_info, key_pairs, _tuple_id, _mem_row_desc, &_multiget_row_batch,
                                 _field_ids, _field_slot, state->need_check_region(), _range_key_sorted);
             _read_disk_size += txn->read_disk_size;
+            state->inc_get_primary_count(key_pairs.size());
             if (ret < 0) {
                 continue;
             }
@@ -758,12 +762,15 @@ int RocksdbScanNode::get_next_by_index_get(RuntimeState* state, RowBatch* batch,
             if (ret < 0) {
                 continue;
             }
+            state->inc_rocks_get_count(1);
             _read_disk_size += txn->read_disk_size;
             if (_index_info->type == pb::I_UNIQ) {
                 record->decode_key(*_index_info, key_pair->left_key().data());
             }
             if (!_is_covering_index && !_is_global_index) {
                 ++get_primary_cnt;
+                state->inc_rocks_get_count(1);
+                state->inc_get_primary_count(1);
                 int ret = txn->get_update_primary(_region_id, *_pri_info, record, _field_ids, _get_mode, false);
                 if (ret < 0) {
                     DB_FATAL("get primary:%ld fail, not exist, ret:%d, record: %s", 
@@ -788,6 +795,7 @@ int RocksdbScanNode::get_next_by_index_get(RuntimeState* state, RowBatch* batch,
         } else {
             auto key_pairs = _scan_range_keys.get_next_batch();
             _scan_rows += key_pairs.size();
+            state->inc_rocks_get_count(key_pairs.size());
             int ret = txn->multiget_secondary(_region_id, *_pri_info, *_index_info, key_pairs, record, _multiget_records,
                                     _tuple_id, _mem_row_desc, &_multiget_row_batch, _field_slot,
                                     !_is_covering_index && !_is_global_index, state->need_check_region(), _range_key_sorted);
@@ -808,6 +816,7 @@ int RocksdbScanNode::get_next_by_index_get(RuntimeState* state, RowBatch* batch,
                             _table_id, ret, record->to_string().c_str());
                     continue;
                 }
+                state->inc_get_primary_count(_multiget_records.size());
                 _read_disk_size += txn->read_disk_size;
             }
         }
@@ -1067,12 +1076,15 @@ int RocksdbScanNode::get_next_by_table_seek(RuntimeState* state, RowBatch* batch
                 if (_is_covering_index) {
                     _table_iter->set_mode(KEY_ONLY);
                 }
+                state->inc_rocks_seek_count(1);
                 _num_rows_returned_by_range = 0;
                 continue;
             }
         }
         if (!_table_iter->is_cstore()) {
             ++_scan_rows;
+            state->inc_rocks_scan_count(1);
+            state->inc_get_primary_count(1);
             std::unique_ptr<MemRow> row = _mem_row_desc->fetch_mem_row();
             int ret = _table_iter->get_next(_tuple_id, row);
             if (ret < 0) {
@@ -1139,6 +1151,7 @@ int RocksdbScanNode::get_next_by_table_seek(RuntimeState* state, RowBatch* batch
                 if (ret < 0) {
                     break;
                 }
+                state->inc_rocks_scan_count(1);
                 _read_disk_size += _table_iter->last_read_disk_size;
                 row_batch.move_row(std::move(row));
                 ++num;
@@ -1147,6 +1160,7 @@ int RocksdbScanNode::get_next_by_table_seek(RuntimeState* state, RowBatch* batch
             for (auto& field_id : _filt_field_ids) {
                 FieldInfo* field_info = _field_ids[field_id];
                 _table_iter->get_column(_tuple_id, *field_info, nullptr, &row_batch);
+                state->inc_rocks_get_count(1);
                 _read_disk_size += _table_iter->last_read_disk_size;
             }
             // filt
@@ -1162,6 +1176,7 @@ int RocksdbScanNode::get_next_by_table_seek(RuntimeState* state, RowBatch* batch
             for (auto& field_id : _trivial_field_ids) {
                 FieldInfo* field_info = _field_ids[field_id];
                 _table_iter->get_column(_tuple_id, *field_info, filter.get(), &row_batch);
+                state->inc_rocks_get_count(1);
                 _read_disk_size += _table_iter->last_read_disk_size;
             }
 
@@ -1246,6 +1261,8 @@ int RocksdbScanNode::get_next_by_index_seek(RuntimeState* state, RowBatch* batch
         if (multiget_last_records) {
             if (_multiget_records.size() > 0) {
                 get_primary_cnt += _multiget_records.size();
+                state->inc_rocks_get_count(_multiget_records.size());
+                state->inc_get_primary_count(_multiget_records.size());
                 int ret = txn->multiget_primary(_region_id, *_pri_info, _tuple_id, _mem_row_desc,
                                 &_multiget_row_batch, _multiget_records, _field_ids, _field_slot, false);
                 if (ret < 0) {
@@ -1294,6 +1311,7 @@ int RocksdbScanNode::get_next_by_index_seek(RuntimeState* state, RowBatch* batch
                         DB_WARNING_STATE(state, "open IndexIterator fail, index_id:%ld", _index_id);
                         return -1;
                     }
+                    state->inc_rocks_seek_count(1);
                     _num_rows_returned_by_range = 0;
                     continue;
                 }
@@ -1301,6 +1319,7 @@ int RocksdbScanNode::get_next_by_index_seek(RuntimeState* state, RowBatch* batch
         }
         //TimeCost cost;
         ++_scan_rows;
+        state->inc_rocks_scan_count(1);
         if (use_record) {
             record->clear();
         }
@@ -1349,6 +1368,8 @@ int RocksdbScanNode::get_next_by_index_seek(RuntimeState* state, RowBatch* batch
         if (!FLAGS_scan_use_multi_get || _has_s_wordrank || _get_mode != GET_ONLY) {
             if (!_is_covering_index && !_is_global_index) {
                 ++get_primary_cnt;
+                state->inc_rocks_get_count(1);
+                state->inc_get_primary_count(1);
                 // todo: 反查直接用encode_key
                 ret = txn->get_update_primary(_region_id, *_pri_info, record, _field_ids, _get_mode, false);
                 _read_disk_size += txn->read_disk_size;
@@ -1374,6 +1395,8 @@ int RocksdbScanNode::get_next_by_index_seek(RuntimeState* state, RowBatch* batch
                 _multiget_records.emplace_back(record->clone(true));
                 if (_multiget_records.is_full() || will_reach_limit(_multiget_records.size())) {
                     get_primary_cnt += _multiget_records.size();
+                    state->inc_rocks_get_count(_multiget_records.size());
+                    state->inc_get_primary_count(_multiget_records.size());
                     int ret = txn->multiget_primary(_region_id, *_pri_info, _tuple_id, _mem_row_desc,
                                  &_multiget_row_batch, _multiget_records, _field_ids, _field_slot, false);
                     if (ret < 0) {

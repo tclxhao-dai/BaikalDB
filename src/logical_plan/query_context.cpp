@@ -44,6 +44,13 @@ void QueryContext::update_ctx_stat_info(RuntimeState* state, int64_t query_total
     stat_info.read_disk_size += state->read_disk_size();
     stat_info.num_filter_rows += state->num_filter_rows();
     stat_info.region_count += state->region_count;
+    stat_info.rocks_get_count += state->rocks_get_count();
+    stat_info.rocks_multiget_count += state->rocks_multiget_count();
+    stat_info.rocks_seek_count += state->rocks_seek_count();
+    stat_info.rocks_scan_count += state->rocks_scan_count();
+    stat_info.get_primary_count += state->get_primary_count();
+    stat_info.lock_cost += state->get_lock_cost();
+    stat_info.wait_cost += state->get_wait_cost();
     if (FLAGS_use_dynamic_timeout && stmt_type == parser::NT_SELECT && stat_info.error_code == 1000 && state->sign != 0) {
         auto sql_info = SchemaFactory::get_instance()->get_sql_stat(state->sign);
         if (sql_info == nullptr) {

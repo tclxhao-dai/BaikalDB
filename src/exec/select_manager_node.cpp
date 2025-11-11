@@ -107,6 +107,10 @@ int SelectManagerNode::subquery_open(RuntimeState* state) {
     state->inc_num_affected_rows(_sub_query_runtime_state->num_affected_rows());
     state->inc_num_scan_rows(_sub_query_runtime_state->num_scan_rows());
     state->inc_num_filter_rows(_sub_query_runtime_state->num_filter_rows());
+    state->inc_rocks_get_count(_sub_query_runtime_state->rocks_get_count());
+    state->inc_rocks_multiget_count(_sub_query_runtime_state->rocks_multiget_count());
+    state->inc_rocks_seek_count(_sub_query_runtime_state->rocks_seek_count());
+    state->inc_rocks_scan_count(_sub_query_runtime_state->rocks_scan_count());
     _sorter->merge_sort();
     return affected_rows;
 }

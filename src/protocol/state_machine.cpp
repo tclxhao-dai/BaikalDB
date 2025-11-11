@@ -380,7 +380,8 @@ void StateMachine::_print_query_time(SmartSocket client) {
             sql_agg_cost << BvarMap(stat_info->sample_sql.str(), index_id, stat_info->table_id,
                     stat_info->total_time, err_count * stat_info->total_time, rows, stat_info->num_scan_rows, stat_info->read_disk_size,
                     stat_info->num_filter_rows, stat_info->region_count,
-                    field_range_type, err_count, stat_info->sign, subquery_signs);
+                    field_range_type, err_count, stat_info->sign, subquery_signs, 
+                    stat_info->rocks_get_count, stat_info->rocks_multiget_count, stat_info->rocks_seek_count, stat_info->rocks_scan_count, stat_info->get_primary_count, stat_info->lock_cost, stat_info->wait_cost);
         }
 
         if (user_info->user_conf.update_bvars) {
@@ -464,7 +465,7 @@ void StateMachine::_print_query_time(SmartSocket client) {
                     "row=[%ld] scan_row=[%ld] read_size=[%ld] bufsize=[%zu] "
                     "key=[%d] changeid=[%lu] logid=[%lu] traceid=[%s] family_ip=[%s] cache=[%d,%d] stmt_name=[%s] "
                     "user=[%s] charset=[%s] errno=[%d] txn=[%lu:%d] 1pc=[%d] sign=[%lu] region_count=[%d] sqllen=[%lu] "
-                    "sql=[%s] id=[%ld] bkup=[%d] server_addr=[%s:%d]",
+                    "sql=[%s] id=[%ld] bkup=[%d] server_addr=[%s:%d] store_statistics=[%ld %ld %ld %ld %ld %ld %ld]",
                     stat_info->family.c_str(),
                     stat_info->table.c_str(),
                     op_type,
@@ -506,7 +507,14 @@ void StateMachine::_print_query_time(SmartSocket client) {
                     sql.length(),
                     sql.c_str(),
                     client->last_insert_id,
-                    ctx->use_backup, butil::my_ip_cstr(), FLAGS_baikal_port);
+                    ctx->use_backup, butil::my_ip_cstr(), FLAGS_baikal_port,
+                    stat_info->rocks_get_count,
+                    stat_info->rocks_multiget_count,
+                    stat_info->rocks_seek_count,
+                    stat_info->rocks_scan_count,
+                    stat_info->get_primary_count,
+                    stat_info->lock_cost,
+                    stat_info->wait_cost);
         }
     } else {
         if ('\x0e' == ctx->mysql_cmd) {

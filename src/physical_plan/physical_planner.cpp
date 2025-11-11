@@ -160,6 +160,14 @@ int PhysicalPlanner::execute(QueryContext* ctx, DataBuffer* send_buf) {
         ctx->stat_info.error_msg.str(state.error_msg.str());
         ctx->stat_info.region_count = state.region_count;
         ctx->stat_info.num_scan_rows = state.num_scan_rows();
+        ctx->stat_info.num_filter_rows = state.num_filter_rows();
+        ctx->stat_info.rocks_get_count = state.rocks_get_count();
+        ctx->stat_info.rocks_multiget_count = state.rocks_multiget_count();
+        ctx->stat_info.rocks_seek_count = state.rocks_seek_count();
+        ctx->stat_info.rocks_scan_count = state.rocks_scan_count();
+        ctx->stat_info.get_primary_count = state.get_primary_count();
+        ctx->stat_info.lock_cost = state.get_lock_cost();
+        ctx->stat_info.wait_cost = state.get_wait_cost();
         return ret;
     }
     ctx->stat_info.error_code = state.error_code;

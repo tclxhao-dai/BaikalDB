@@ -383,6 +383,13 @@ public:
         read_disk_size = 0;
         filter_rows = 0;
         row_cnt = 0;
+        rocks_get_count = 0;
+        rocks_seek_count = 0;
+        rocks_multiget_count = 0;
+        rocks_scan_count = 0;
+        get_primary_count = 0;
+        lock_cost = 0;
+        wait_cost = 0;
         primary_timestamp_updated = false;
         no_copy_cache_plan_set.clear();
         dynamic_timeout_ms = -1;
@@ -483,6 +490,13 @@ public:
         scan_rows = 0;
         filter_rows = 0;
         row_cnt = 0;
+        rocks_get_count = 0;
+        rocks_seek_count = 0;
+        rocks_multiget_count = 0;
+        rocks_scan_count = 0;
+        get_primary_count = 0;
+        lock_cost = 0;
+        wait_cost = 0;
         client_conn = state->client_conn();
         traces.clear();
     }
@@ -534,6 +548,13 @@ public:
         state->set_num_scan_rows(state->num_scan_rows() + scan_rows.load());
         state->set_read_disk_size(state->read_disk_size() + read_disk_size.load());
         state->set_num_filter_rows(state->num_filter_rows() + filter_rows.load());
+        state->set_rocks_get_count(state->rocks_get_count() + rocks_get_count.load());
+        state->set_rocks_seek_count(state->rocks_seek_count() + rocks_seek_count.load());
+        state->set_rocks_multiget_count(state->rocks_multiget_count() + rocks_multiget_count.load());
+        state->set_rocks_scan_count(state->rocks_scan_count() + rocks_scan_count.load());
+        state->set_get_primary_count(state->get_primary_count() + get_primary_count.load());
+        state->set_lock_cost(state->get_lock_cost() + lock_cost.load());
+        state->set_wait_cost(state->get_wait_cost() + wait_cost.load());
     }
 
     static bool rpc_need_retry(int32_t errcode) {
@@ -680,6 +701,13 @@ public:
     std::atomic<int64_t> scan_rows = {0};
     std::atomic<int64_t> read_disk_size = {0};
     std::atomic<int64_t> filter_rows = {0};
+    std::atomic<int64_t> rocks_scan_count = {0};
+    std::atomic<int64_t> rocks_get_count = {0};
+    std::atomic<int64_t> rocks_seek_count = {0};
+    std::atomic<int64_t> rocks_multiget_count = {0};
+    std::atomic<int64_t> get_primary_count = {0};
+    std::atomic<int64_t> lock_cost = {0};
+    std::atomic<int64_t> wait_cost = {0};
     bool is_cancelled = false;
     BthreadCond binlog_cond;
     NetworkSocket* client_conn = nullptr;

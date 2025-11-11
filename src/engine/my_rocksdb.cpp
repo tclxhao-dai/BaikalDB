@@ -209,7 +209,9 @@ rocksdb::Status Transaction::GetForUpdate(const rocksdb::ReadOptions& options,
     // 执行
     TimeCost cost;
     auto s = _txn->GetForUpdate(options, column_family, key, value);
-    total_time += cost.get_time();
+    auto get_cost = cost.get_time();
+    total_time += get_cost;
+    lock_cost += get_cost;
     if (++count >= FLAGS_rocksdb_cost_sample) {
         RocksdbVars::get_instance()->rocksdb_get_time << total_time / count;
         RocksdbVars::get_instance()->rocksdb_get_count << count;
@@ -235,7 +237,9 @@ rocksdb::Status Transaction::GetForUpdate(const rocksdb::ReadOptions& options,
     // 执行
     TimeCost cost;
     auto s = _txn->GetForUpdate(options, column_family, key, pinnable_val);
-    total_time += cost.get_time();
+    auto get_cost = cost.get_time();
+    total_time += get_cost;
+    lock_cost += get_cost;
     if (++count >= FLAGS_rocksdb_cost_sample) {
         RocksdbVars::get_instance()->rocksdb_get_time << total_time / count;
         RocksdbVars::get_instance()->rocksdb_get_count << count;
@@ -252,7 +256,9 @@ rocksdb::Status Transaction::Put(rocksdb::ColumnFamilyHandle* column_family, con
     static thread_local int64_t count = 0;
     TimeCost cost;
     auto s = _txn->Put(column_family, key, value);
-    total_time += cost.get_time();
+    auto put_cost = cost.get_time();
+    total_time += put_cost;
+    // lock_cost += put_cost;
     if (++count >= FLAGS_rocksdb_cost_sample) {
         RocksdbVars::get_instance()->rocksdb_put_time << total_time / count;
         RocksdbVars::get_instance()->rocksdb_put_count << count;
@@ -269,7 +275,9 @@ rocksdb::Status Transaction::Put(rocksdb::ColumnFamilyHandle* column_family, con
     static thread_local int64_t count = 0;
     TimeCost cost;
     auto s = _txn->Put(column_family, key, value);
-    total_time += cost.get_time();
+    auto put_cost = cost.get_time();
+    total_time += put_cost;
+    // lock_cost += put_cost;
     if (++count >= FLAGS_rocksdb_cost_sample) {
         RocksdbVars::get_instance()->rocksdb_put_time << total_time / count;
         RocksdbVars::get_instance()->rocksdb_put_count << count;

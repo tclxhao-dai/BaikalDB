@@ -215,6 +215,90 @@ public:
         _num_scan_rows += num;
     }
 
+    int64_t get_primary_count() {
+        return _get_primary_count;
+    }
+
+    void set_get_primary_count(int64_t num) {
+        _get_primary_count = num;
+    }
+
+    void inc_get_primary_count(int64_t num) {
+        _get_primary_count += num;
+    }
+
+    int64_t get_wait_cost() {
+        return _wait_cost;
+    }
+
+    void set_wait_cost(int64_t num) {
+        _wait_cost = num;
+    }
+
+    void inc_wait_cost(int64_t num) {
+        _wait_cost += num;
+    }
+
+    int64_t get_lock_cost() {
+        return _lock_cost;
+    }
+
+    void set_lock_cost(int64_t num) {
+        _lock_cost = num;
+    }
+
+    void inc_lock_cost(int64_t num) {
+        _lock_cost += num;
+    }
+
+    int64_t rocks_get_count() {
+        return _rocks_get_count;
+    }
+
+    void set_rocks_get_count(int64_t num) {
+        _rocks_get_count = num;
+    }
+
+    void inc_rocks_get_count(int64_t num) {
+        _rocks_get_count += num;
+    }
+
+    int64_t rocks_seek_count() {
+        return _rocks_seek_count;
+    }
+
+    void set_rocks_seek_count(int64_t num) {
+        _rocks_seek_count = num;
+    }
+
+    void inc_rocks_seek_count(int64_t num) {
+        _rocks_seek_count += num;
+    }
+
+    int64_t rocks_scan_count() {
+        return _rocks_scan_count;
+    }
+
+    void set_rocks_scan_count(int64_t num) {
+        _rocks_scan_count = num;
+    }
+
+    void inc_rocks_scan_count(int64_t num) {
+        _rocks_scan_count += num;
+    }
+
+    int64_t rocks_multiget_count() {
+        return _rocks_multiget_count;
+    }
+
+    void set_rocks_multiget_count(int64_t num) {
+        _rocks_multiget_count = num;
+    }
+
+    void inc_rocks_multiget_count(int64_t num) {
+        _rocks_multiget_count += num;
+    }
+
     void set_read_disk_size(int64_t s) {
         _read_disk_size = s;
     }
@@ -410,6 +494,13 @@ public:
         _num_filter_rows = 0;
         _read_disk_size = 0;
         _is_cancelled = false;
+        _rocks_get_count = 0;
+        _rocks_seek_count = 0;
+        _rocks_scan_count = 0;
+        _rocks_multiget_count = 0;
+        _get_primary_count = 0;
+        _lock_cost = 0;
+        _wait_cost = 0;
     }
     bool is_timeout() {
         return _sql_exec_timeout > 0 && time_cost.get_time()  > _sql_exec_timeout * 1000L;
@@ -487,6 +578,13 @@ private:
     int64_t _num_scan_rows     = 0; //存储baikalStore扫描行数
     int64_t _num_filter_rows   = 0; //存储过滤行数
     int64_t _read_disk_size = 0; // 扫描大小
+    int64_t _rocks_get_count = 0;
+    int64_t _rocks_multiget_count = 0;
+    int64_t _rocks_seek_count = 0;
+    int64_t _rocks_scan_count = 0;
+    int64_t _get_primary_count = 0;
+    int64_t _lock_cost = 0;
+    int64_t _wait_cost = 0;
     uint64_t _log_id = 0;
 
     bool              _single_sql_autocommit = true;     // used for baikaldb and store

@@ -225,6 +225,12 @@ int InsertManagerNode::subquery_open(RuntimeState* state) {
     state->inc_num_affected_rows(_sub_query_runtime_state->num_affected_rows());
     state->inc_num_scan_rows(_sub_query_runtime_state->num_scan_rows());
     state->inc_num_filter_rows(_sub_query_runtime_state->num_filter_rows());
+    state->inc_rocks_get_count(_sub_query_runtime_state->rocks_get_count());
+    state->inc_rocks_multiget_count(_sub_query_runtime_state->rocks_multiget_count());
+    state->inc_rocks_seek_count(_sub_query_runtime_state->rocks_seek_count());
+    state->inc_rocks_scan_count(_sub_query_runtime_state->rocks_scan_count());
+    state->inc_get_primary_count(_sub_query_runtime_state->get_primary_count());
+    state->inc_lock_cost(_sub_query_runtime_state->get_lock_cost());
     if (_table_info->auto_inc_field_id != -1) {
         return AutoInc().update_auto_inc(_table_info, state->client_conn(), state->use_backup(), _origin_records);
     }

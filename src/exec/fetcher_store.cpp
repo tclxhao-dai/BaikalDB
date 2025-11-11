@@ -858,6 +858,15 @@ ErrorType OnRPCDone::handle_response(const std::string& remote_side) {
         if (_response.extra_res().has_last_value()) {
             _client_conn->last_value = _response.extra_res().last_value();
         }
+        if (_response.extra_res().has_sql_statics()) {
+            _fetcher_store->rocks_scan_count += _response.extra_res().sql_statics().rocks_scan_count();
+            _fetcher_store->rocks_seek_count += _response.extra_res().sql_statics().rocks_seek_count();
+            _fetcher_store->rocks_get_count += _response.extra_res().sql_statics().rocks_get_count();
+            _fetcher_store->rocks_multiget_count += _response.extra_res().sql_statics().rocks_multiget_count();
+            _fetcher_store->get_primary_count += _response.extra_res().sql_statics().get_primary_count();
+            _fetcher_store->lock_cost += _response.extra_res().sql_statics().lock_cost();
+            _fetcher_store->wait_cost += _response.extra_res().sql_statics().wait_cost();
+        }
     }
     if (_op_type != pb::OP_SELECT && _op_type != pb::OP_SELECT_FOR_UPDATE && _op_type != pb::OP_ROLLBACK) {
         _fetcher_store->affected_rows += _response.affected_rows();
@@ -1173,6 +1182,10 @@ int FetcherStore::run_not_set_state(RuntimeState* state,
     scan_rows = 0;
     filter_rows = 0;
     row_cnt = 0;
+    rocks_scan_count = 0;
+    rocks_get_count = 0;
+    rocks_seek_count = 0;
+    rocks_multiget_count = 0;
     client_conn = state->client_conn();
     region_count += region_infos.size();
     global_backup_type = backup_type;

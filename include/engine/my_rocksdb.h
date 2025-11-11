@@ -139,9 +139,12 @@ public:
     }
 
     void DisableIndexing() { _txn->DisableIndexing(); }
+    int64_t get_lock_cost() { return lock_cost;}
+    void reset_lock_cost() { lock_cost = 0;}
 
 private:
     rocksdb::Transaction* _txn = nullptr;
+    int64_t lock_cost = 0;
 };
 
 } // namespace myrocksdb

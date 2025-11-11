@@ -564,6 +564,14 @@ public:
         _reverse_set.insert(base);
     }
 
+    int64_t get_lock_cost() {
+        return _txn->get_lock_cost();
+    }
+
+    void reset_lock_cost() {
+        return _txn->reset_lock_cost();
+    }
+
 public:
     int64_t     num_increase_rows = 0;
     int64_t     last_active_time = 0;

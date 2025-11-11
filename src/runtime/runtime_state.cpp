@@ -121,6 +121,13 @@ int RuntimeState::init(QueryContext* ctx, DataBuffer* send_buf) {
     _num_returned_rows = 0; 
     _num_scan_rows     = 0; 
     _num_filter_rows   = 0; 
+    _rocks_get_count   = 0;
+    _rocks_multiget_count   = 0;
+    _rocks_seek_count   = 0;
+    _rocks_scan_count   = 0;
+    _get_primary_count   = 0;
+    _lock_cost = 0;
+    _wait_cost = 0;
     set_client_conn(ctx->client_conn);
     if (_client_conn == nullptr) {
         return -1;
