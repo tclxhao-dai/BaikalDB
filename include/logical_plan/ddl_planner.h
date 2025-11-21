@@ -30,6 +30,14 @@ public:
     virtual int plan();
 
 private:
+    int is_valid_name(const std::string& str) {
+        for (char ch : str) {
+            if (!std::isalnum(ch) && ch != '_') {
+                return false;
+            }
+        }
+        return true;
+    }
     int parse_create_table(pb::SchemaInfo& table);
     int parse_drop_table(pb::SchemaInfo& table);
     int parse_restore_table(pb::SchemaInfo& table);

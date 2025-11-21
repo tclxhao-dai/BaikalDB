@@ -25,6 +25,7 @@
 namespace baikaldb {
 DEFINE_bool(unique_index_default_global, true, "unique_index_default_global");
 DEFINE_bool(normal_index_default_global, false, "normal_index_default_global");
+DEFINE_bool(ddl_table_column_name_check, false, "check valid table column name");
 int DDLPlanner::plan() {
     pb::MetaManagerRequest request;
     if (!_ctx->user_info->allow_ddl()) {
@@ -225,6 +226,12 @@ int DDLPlanner::add_column_def(pb::SchemaInfo& table, parser::ColumnDef* column,
     pb::FieldInfo* field = table.add_fields();
     if (column->name == nullptr || column->name->name.empty()) {
         DB_WARNING("column_name is empty");
+        return -1;
+    }
+    if (FLAGS_ddl_table_column_name_check && !is_valid_name(column->name->name.value)) {
+        _ctx->stat_info.error_code = ER_WRONG_COLUMN_NAME;
+        _ctx->stat_info.error_msg << "column name `" << column->name->name.value <<  "` not valid!";
+        DB_WARNING("column_name `%s` is not valid", column->name->name.value);
         return -1;
     }
     field->set_field_name(column->name->name.value);
@@ -647,6 +654,12 @@ int DDLPlanner::parse_create_table(pb::SchemaInfo& table) {
         table.set_database(_ctx->cur_db);
     } else {
         table.set_database(stmt->table_name->db.value);
+    }
+    if (FLAGS_ddl_table_column_name_check && !is_valid_name(stmt->table_name->table.value)) {
+        _ctx->stat_info.error_code = ER_TABLE_NAME;
+        _ctx->stat_info.error_msg << "table name `" << stmt->table_name->table.value <<  "` not valid!";
+        DB_WARNING("table name `%s` not valid!", stmt->table_name->table.value);
+        return -1;
     }
     table.set_table_name(stmt->table_name->table.value);
     table.set_partition_num(1);
@@ -1346,8 +1359,14 @@ int DDLPlanner::parse_alter_table(pb::MetaManagerRequest& alter_request) {
             _ctx->stat_info.error_msg << "old field_name is empty";
             return -1;
         }
-        field->set_field_name(spec->column_name.value);
         parser::ColumnDef* column = spec->new_columns[0];
+        if (FLAGS_ddl_table_column_name_check && !is_valid_name(column->name->name.value)) {
+            _ctx->stat_info.error_code = ER_WRONG_COLUMN_NAME;
+            _ctx->stat_info.error_msg << "column name `" << column->name->name.value <<  "` not valid!";
+            DB_WARNING("column_name `%s` is not valid", column->name->name.value);
+            return -1;
+        }
+        field->set_field_name(spec->column_name.value);
         field->set_new_field_name(column->name->name.value);
     } else if (spec->spec_type == parser::ALTER_SPEC_RENAME_TABLE) {
         alter_request.set_op_type(pb::OP_RENAME_TABLE);
