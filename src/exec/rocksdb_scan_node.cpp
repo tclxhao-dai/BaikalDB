@@ -369,7 +369,7 @@ int RocksdbScanNode::index_condition_pushdown() {
     }
     if (_parent->node_type() != pb::WHERE_FILTER_NODE &&
             _parent->node_type() != pb::TABLE_FILTER_NODE) {
-        DB_WARNING("parent is not filter node:%d", _parent->node_type());
+        //DB_WARNING("parent is not filter node:%d", _parent->node_type());
         return 0;
     }
     
