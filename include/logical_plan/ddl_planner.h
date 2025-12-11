@@ -32,7 +32,7 @@ public:
 private:
     int is_valid_name(const std::string& str) {
         for (char ch : str) {
-            if (!std::isalnum(ch) && ch != '_') {
+            if (!std::isalnum(ch) && ch != '_' && ch != '-' && ch != '.') {
                 return false;
             }
         }
