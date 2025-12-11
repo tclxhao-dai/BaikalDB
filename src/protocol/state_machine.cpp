@@ -1703,12 +1703,17 @@ bool StateMachine::_handle_client_query_common_query(SmartSocket client) {
     if (ret < 0) {
         DB_WARNING_CLIENT(client, "Failed to LogicalPlanner::analyze: %s",
             client->query_ctx->sql.c_str());
+        // single SQL transaction need to reset connection transaction status
+        if (client->query_ctx->get_runtime_state()->single_sql_autocommit()) {
+            client->on_commit_rollback();
+        }
         if (client->query_ctx->stat_info.error_code == ER_ERROR_FIRST) {
             client->query_ctx->stat_info.error_code = ER_GEN_PLAN_FAILED;
             client->query_ctx->stat_info.error_msg << "get logical plan failed";
         }
+        std::string str = client->query_ctx->stat_info.error_msg.str();
         _wrapper->make_err_packet(client,
-            client->query_ctx->stat_info.error_code, "%s", client->query_ctx->stat_info.error_msg.str().c_str());
+            client->query_ctx->stat_info.error_code, "%s", str.c_str());
         return false;
     }
     // DDL query need to interact with metaserver.
