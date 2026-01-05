@@ -34,10 +34,14 @@ DECLARE_string(meta_server_bns);
 DECLARE_int32(baikal_port);
 DECLARE_bool(open_to_collect_slow_query_infos);
 DECLARE_int32(slow_query_timeout_s);
+DECLARE_bool(ready_to_exit);
 void StateMachine::run_machine(SmartSocket client,
         EpollInfo* epoll_info,
         bool shutdown) {
 
+    //DB_NOTICE("connection :%ld,exit is: %s",client->conn_id,FLAGS_ready_to_exit?"yes":"no")
+    //DB_NOTICE("connection :%ld 's state is :%d,shutdown is %s",client->conn_id,client->state,shutdown?"yes":"no")
+    //epoll_info->get_fd_mapping(client->fd);
     switch (client->state) {
     case STATE_CONNECTED_CLIENT: {
         if (shutdown) {
@@ -147,7 +151,13 @@ void StateMachine::run_machine(SmartSocket client,
         break;
     }
     case STATE_SEND_AUTH_RESULT: {
-        if (shutdown) {
+        //printf("[%ld]shutdown?%s\n",bthread_self(),client->shutdown ? "yes" : "no");
+        if (FLAGS_ready_to_exit && client -> txn_id ==0) {
+            client -> shutdown = true;
+            client->state = STATE_ERROR;
+            run_machine(client, epoll_info, shutdown || client->shutdown);
+        }
+        if (shutdown || client -> shutdown) {
             client->state = STATE_ERROR;
             run_machine(client, epoll_info, shutdown);
             break;
@@ -191,6 +201,9 @@ void StateMachine::run_machine(SmartSocket client,
         //auto query_ctx = client->query_ctx;
         //stat_info = &(query_ctx->stat_info);
         // Process query.
+        //DB_WARNING("debug:%d",client->conn_id)
+        //std::cout << "[" <<bthread_self() << "]shutdown?" << (client->shutdown ? "yes" : "no") <<std::endl;
+
         bool res = _query_process(client);
         if (!res || STATE_ERROR == client->state || STATE_ERROR_REUSE == client->state) {
             DB_WARNING_CLIENT(client, "handle query failed. sql=[%s] state:%d",
@@ -311,6 +324,19 @@ void StateMachine::run_machine(SmartSocket client,
         DB_FATAL("unknown state[%d]", client->state);
         break;
     }
+    }
+    if (FLAGS_ready_to_exit) {
+        // DB_NOTICE("conn %d start to exit",client->conn_id)
+        // if (client -> txn_id ==0 ) {
+        //     if (client -> is_free) {
+        //         return;
+        //     }
+        //     //MachineDriver::get_instance()->dispatch(client,epoll_info,true);
+        //     client ->shutdown = true;
+        //     client -> state = STATE_ERROR;
+        //     run_machine(client, epoll_info, client->shutdown);
+        //     close(client->fd);
+        // }
     }
     return;
 }
@@ -1845,6 +1871,7 @@ bool StateMachine::_handle_client_query_common_query(SmartSocket client) {
     //DB_WARNING("client: %ld ,seq_id: %d", client.get(), client->seq_id);
     // 不会有fether那一层，重构
     if (!client->query_ctx->is_full_export) {
+        //std::cout<<bthread_self()<<"before execute,shutwodn is "<<client->shutdown;
         ret = PhysicalPlanner::execute(client->query_ctx.get(), client->send_buf);
         //DB_WARNING("client: %ld ,seq_id: %d", client.get(), client->seq_id);
         // 空值优化时可能执行不到TransactionNode

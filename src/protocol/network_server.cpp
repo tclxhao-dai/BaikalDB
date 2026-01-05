@@ -58,6 +58,8 @@ DEFINE_int32(limit_slow_sql_size, 50, "each sign to slow query sql counts, defau
 DEFINE_int32(slow_query_batch_size, 100, "slow query sql batch size, default: 100");
 DECLARE_bool(auto_update_meta_list);
 DECLARE_bool(use_dynamic_timeout);
+DEFINE_bool(ready_to_exit,false,"if set to true, baikaldb will exit gracefully");
+BRPC_VALIDATE_GFLAG(ready_to_exit,brpc::PassValidate);
 
 static const std::string instance_table_name = "INTERNAL.baikaldb.__baikaldb_instance";
 
@@ -903,6 +905,7 @@ void NetworkServer::process_other_heart_beat_response(const pb::BaikalOtherHeart
 
 void NetworkServer::connection_timeout_check() {
     auto check_func = [this]() {
+        DB_NOTICE("start to check all connection...")
         std::set<std::string> need_cancel_addrs;
         std::set<std::string> logical_rooms;
         std::set<std::string> dead_logical_rooms;
@@ -979,6 +982,7 @@ void NetworkServer::connection_timeout_check() {
             }
             time_now = time(NULL);
             auto ctx = sock->get_query_ctx();
+            DB_NOTICE("connection %lld 's cmd=%d",sock->conn_id,ctx->mysql_cmd)
             if (ctx != nullptr && 
                     ctx->mysql_cmd != COM_SLEEP) {
                 if (need_cancel_addrs.size() > 0) {
@@ -1034,6 +1038,10 @@ void NetworkServer::connection_timeout_check() {
                     }
                     continue;
                 }
+            }
+            if (FLAGS_ready_to_exit) {
+                sock->shutdown = true;
+                MachineDriver::get_instance()->dispatch(sock, _epoll_info,sock->shutdown ||_shutdown);
             }
             // 处理连接空闲时间过长的情况，踢掉空闲连接
             double diff = difftime(time_now, sock->last_active);
@@ -1480,6 +1488,12 @@ int NetworkServer::make_worker_process() {
                 }
                 if (client_fd >= CONFIG_MPL_EPOLL_MAX_SIZE) {
                     DB_WARNING("Wrong fd.fd=%d >= CONFIG_MENU_EPOLL_MAX_SIZE", client_fd);
+                    close(client_fd);
+                    continue;
+                }
+                // Reject new connection when ready_to_exit is true
+                if (FLAGS_ready_to_exit) {
+                    DB_WARNING("ready_to_exit is true, reject new connection fd=%d", client_fd);
                     close(client_fd);
                     continue;
                 }
